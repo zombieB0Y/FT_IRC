@@ -1,54 +1,163 @@
-#include <iostream>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <string>
-#include <unistd.h>
+#include "server.hpp"
+#include <arpa/inet.h>
 
-int main() {
-	int	servsocket = socket(AF_INET, SOCK_STREAM, 0);
-	if (servsocket == -1) {
-		std::cerr << "opening server socket failed !\n";
-		return 1;
-	}
+bool server::signal = false;
 
-	sockaddr_in	server_address;
-	server_address.sin_family = AF_INET;
-	server_address.sin_port = htons(8080);
-	server_address.sin_addr.s_addr = INADDR_ANY;
-	int optval = 1;
-	if (setsockopt(servsocket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1
-		|| bind(servsocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
-		std::cerr << "binding server socket failed !\n";
-		close(servsocket);
-		return 1;
+server::server() : serverSocket(-1), port(-1) {}
+
+server::server(const server &copy) {
+	*this = copy;
+}
+
+server	&server::operator=(const server &copy) {
+	if (this != &copy) {
+		this->port = copy.port;
+		this->serverSocket = copy.serverSocket;
+		this->clients = copy.clients;
+		this->fds = copy.fds;
 	}
-	if (listen(servsocket, 5) == -1) {
-		std::cerr << "listening server socket failed !\n";
-		close(servsocket);
-		return 1;
+	return *this;
+}
+
+server::~server() {
+	clear_fds();
+}
+
+server::server(int _port) : port(_port) {}
+
+void	server::signalhandler(int sig) {
+	(void)sig;
+	signal = true;
+}
+
+void	server::accept_new_client() {
+	client	client;
+	struct sockaddr_in	client_address;
+	socklen_t		add_len = sizeof(client_address);
+	int	client_fd = accept(this->serverSocket, (struct sockaddr *)&client_address, &add_len);
+	if (client_fd == -1) {
+		std::cerr << "accept(): failed !\n";
+		server::signalhandler(SIGQUIT);
+		return ;
 	}
+	if (fcntl(client_fd, F_SETFL, O_NONBLOCK) == -1) {
+		std::cerr << "NON BLOCKING failed !\n";
+		server::signalhandler(SIGQUIT);
+		return ;
+	}
+// ---------------------------------------------------------------------------------------
+	std::string welcome_msg = "Welcome to the 1337 IRC Server!\r\n";
+	ssize_t bytes_sent = send(client_fd, welcome_msg.c_str(), welcome_msg.length(), 0);
+	if (bytes_sent == -1) {
+		std::cerr << "send(): failed to send welcome message to client " << client_fd << "\n";
+	} else {
+		std::cout << "Client <" << client_fd << "> Connected. Welcome message sent.\n";
+	}
+// ---------------------------------------------------------------------------------------
+	struct pollfd	clientpoll;
+	clientpoll.fd = client_fd;
+	clientpoll.events = POLLIN;
+	clientpoll.revents = 0;
+	this->fds.push_back(clientpoll);
+
+	client.setFd(client_fd);
+	client.setIp(inet_ntoa(client_address.sin_addr));
+	this->clients.push_back(client);
+}
+
+void	server::read_data(int fd) {
 	
-	int clientsocket = accept(servsocket, 0, 0);
-	char	buffer[1024];
-	// char	line[1025];
-	// std::cout << "CLIENT Message >>> ";
-	int bit_read = recv(clientsocket, buffer, sizeof(buffer), 0);
-	if (bit_read == -1) {
-		std::cerr << "recv() failed !\n";
-		close(servsocket);
-		close(clientsocket);
-		return 1;
+	char buff[1024];
+	memset(buff, 0, sizeof(buff));
+	ssize_t bytes = recv(fd, buff, sizeof(buff) - 1 , 0);
+
+	if(bytes <= 0) {
+		std::cerr << "Client <" << fd << "> Disconnected" << std::endl;
+		clear_client(fd);
+		close(fd);
 	}
-	while (bit_read > 0) {
-		write(1, buffer, bit_read);
-		bit_read = recv(clientsocket, buffer, sizeof(buffer), 0);
-		if (bit_read == -1) {
-			std::cerr << "recv() failed !\n";
-			close(servsocket);
-			close(clientsocket);
-			return 1;
+	write(1, buff, bytes);
+}
+
+void	server::server_init() {
+	init_server_socket();
+
+	while (server::signal == false) {
+		if (poll(&fds[0], fds.size(), -1) == -1 && server::signal == false)
+			throw std::runtime_error("poll(): failed !");
+		for (size_t i = 0; i < fds.size(); i++) {
+			if (fds[i].revents & POLLIN) {
+				if (fds[i].fd == this->serverSocket)
+					accept_new_client();
+				else
+					read_data(fds[i].fd);
+			}
 		}
 	}
-	close(servsocket);
-	close(clientsocket);
+	clear_fds();
+}
+
+void	server::init_server_socket() {
+	if (this->port == -1)
+		this->port = 8080;
+	this->serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+		if (this->serverSocket == -1) throw std::runtime_error("opening server socket failed !");
+	
+	sockaddr_in	server_address;
+	server_address.sin_family = AF_INET;
+	server_address.sin_port = htons(this->port);
+	server_address.sin_addr.s_addr = INADDR_ANY;
+	int optval = 1;
+	
+	if (setsockopt(this->serverSocket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
+		close(this->serverSocket);
+		this->serverSocket = -1;
+		throw std::runtime_error("faild to set option (SO_REUSEADDR) on socket");
+	}
+	if (fcntl(this->serverSocket, F_SETFL, O_NONBLOCK) == -1) {
+		close(this->serverSocket);
+		this->serverSocket = -1;
+		throw std::runtime_error("failed to set non blocking flag !");
+	}
+	if (bind(this->serverSocket, (struct sockaddr*)&server_address, sizeof(server_address)) == -1) {
+		close(this->serverSocket);
+		this->serverSocket = -1;
+		throw std::runtime_error("binding server socket failed !");
+	}
+	if (listen(this->serverSocket, SOMAXCONN) == -1) {
+		close(this->serverSocket);
+		this->serverSocket = -1;
+		throw std::runtime_error("listening server socket failed !");
+	}
+
+	struct pollfd	newpoll;
+	newpoll.fd = this->serverSocket;
+	newpoll.events = POLLIN;
+	newpoll.revents = 0;
+	this->fds.push_back(newpoll);
+}
+
+void	server::clear_fds() {
+	for (size_t i = 0; i < clients.size(); i++) {
+		if (clients[i].getFd() != -1) {
+			std::cout << "Client <" << clients[i].getFd() << "> Disconnected" << std::endl;
+			close(clients[i].getFd());
+			clients[i].setFd(-1);
+		}
+		if (this->serverSocket != -1) {
+			std::cout << "SERVER <" << this->serverSocket << "> Disconnected" << std::endl;
+			close(this->serverSocket);
+			this->serverSocket = -1;
+		}
+	}
+}
+
+void	server::clear_client(int fd) {
+	for (size_t i = 0; i < fds.size(); i++) {
+		if (fds[i].fd == fd) {
+			fds.erase(fds.begin() + i);
+			clients.erase(clients.begin() + (i - 1));
+			break ;
+		}
+	}
 }
