@@ -18,6 +18,7 @@ class server
 private:
 	int							serverSocket;
 	int							port;
+	std::string					password;
 	static bool					signal;
 	std::vector<client> 		clients;
 	std::vector<struct pollfd>	fds;
@@ -26,12 +27,12 @@ public:
 	server(const server &copy);
 	server	&operator=(const server &copy);
 	~server();
-	server(int _port); // neeed to pass password too ig!!
+	server(int _port, std::string _password); // neeed to pass password too ig!!
 
 	void	server_init();
 	void	init_server_socket();
 	void	accept_new_client();
-	void	read_data(int fd);
+	void	read_data(client client);
 	void	clear_fds();
 	void	clear_client(int fd);
 

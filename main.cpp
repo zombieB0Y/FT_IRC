@@ -2,8 +2,8 @@
 #include "client.hpp"
 
 int main(int ac, char **av) {
-	if (ac > 1) {
-		server	server(atoi(av[1]));
+	if (ac == 3) {
+		server	server(atoi(av[1]), av[2]);
 		try{
 			signal(SIGINT, server::signalhandler);
 			signal(SIGQUIT, server::signalhandler);

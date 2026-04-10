@@ -3,7 +3,7 @@
 
 bool server::signal = false;
 
-server::server() : serverSocket(-1), port(-1) {}
+server::server() : serverSocket(-1), port(-1), password("0000") {}
 
 server::server(const server &copy) {
 	*this = copy;
@@ -23,7 +23,7 @@ server::~server() {
 	clear_fds();
 }
 
-server::server(int _port) : port(_port) {}
+server::server(int _port, std::string _password) : port(_port), password(_password) {}
 
 void	server::signalhandler(int sig) {
 	(void)sig;
@@ -46,7 +46,7 @@ void	server::accept_new_client() {
 		return ;
 	}
 // ---------------------------------------------------------------------------------------
-	std::string welcome_msg = "Welcome to the 1337 IRC Server!\r\n";
+	std::string welcome_msg = "Welcome to the 1337 IRC Server!\r\nYou need to PASS the password to connect, u can use \"PASS <password>\" to connect!\r\n";
 	ssize_t bytes_sent = send(client_fd, welcome_msg.c_str(), welcome_msg.length(), 0);
 	if (bytes_sent == -1) {
 		std::cerr << "send(): failed to send welcome message to client " << client_fd << "\n";
@@ -65,20 +65,32 @@ void	server::accept_new_client() {
 	this->clients.push_back(client);
 }
 
-void	server::read_data(int fd) {
+void	server::read_data(client client) {
 	
-	char buff[1024];
-	memset(buff, 0, sizeof(buff));
-	ssize_t bytes = recv(fd, buff, sizeof(buff) - 1 , 0);
+	std::string	buff;
+	int max_bytes = 1024;
+	buff.resize(max_bytes);
+	int		fd = client.getFd();
+	ssize_t bytes = recv(fd, &buff[0], max_bytes , 0);
 
 	if(bytes <= 0) {
-		std::cerr << "Client <" << fd << "> Disconnected" << std::endl;
+		std::cerr << "Client <" << client.getIp() << "> Disconnected" << std::endl;
 		clear_client(fd);
 		close(fd);
 	}
-	write(1, buff, bytes);
+	// write(1, buff, bytes);
+	// client.setBuffer(buff);
+	bool	done = false;
+	while (done != true) {
+		if (!client.is_authenticate()) {
+			size_t newline_idx = buff.find("\n");
+			if (newline_idx != std::string::npos)
+				std::string	line = 
+		}
+	}
 }
 
+// ------------------------------------POLL--------------------------
 void	server::server_init() {
 	init_server_socket();
 
@@ -90,12 +102,13 @@ void	server::server_init() {
 				if (fds[i].fd == this->serverSocket)
 					accept_new_client();
 				else
-					read_data(fds[i].fd);
+					read_data(clients[i - 1]);
 			}
 		}
 	}
 	clear_fds();
 }
+//-----------------------------------------------------------------------
 
 void	server::init_server_socket() {
 	if (this->port == -1)
