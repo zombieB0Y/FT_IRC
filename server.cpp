@@ -1,7 +1,19 @@
 #include "server.hpp"
-#include <arpa/inet.h>
 
 bool server::signal = false;
+
+// ------------------------------sending to client func-----------------------------------------------------
+
+void	send_msg(std::string msg, int client_fd) {
+	ssize_t bytes_sent = send(client_fd, msg.c_str(), msg.length(), 0);
+	if (bytes_sent == -1) {
+		std::cerr << "send(): failed to send welcome message to client " << client_fd << "\n";
+	} else {
+		std::cout << "Client <" << client_fd << "> Connected. Welcome message sent.\n";
+	}
+}
+
+// ---------------------------------------------------------------------------------------------------------
 
 server::server() : serverSocket(-1), port(-1), password("0000") {}
 
@@ -45,15 +57,8 @@ void	server::accept_new_client() {
 		server::signalhandler(SIGQUIT);
 		return ;
 	}
-// ---------------------------------------------------------------------------------------
-	std::string welcome_msg = "Welcome to the 1337 IRC Server!\r\nYou need to PASS the password to connect, u can use \"PASS <password>\" to connect!\r\n";
-	ssize_t bytes_sent = send(client_fd, welcome_msg.c_str(), welcome_msg.length(), 0);
-	if (bytes_sent == -1) {
-		std::cerr << "send(): failed to send welcome message to client " << client_fd << "\n";
-	} else {
-		std::cout << "Client <" << client_fd << "> Connected. Welcome message sent.\n";
-	}
-// ---------------------------------------------------------------------------------------
+	// send_msg("Welcome to the 1337 IRC Server!\r\n", client_fd);
+	send_msg("You need to PASS the password to connect, u can use \"PASS <password>\" to connect!\r\n", client_fd);
 	struct pollfd	clientpoll;
 	clientpoll.fd = client_fd;
 	clientpoll.events = POLLIN;
@@ -78,15 +83,23 @@ void	server::read_data(client client) {
 		clear_client(fd);
 		close(fd);
 	}
-	// write(1, buff, bytes);
-	// client.setBuffer(buff);
+	client.append_Buffer(buff);
 	bool	done = false;
+	std::string	line;
 	while (done != true) {
 		if (!client.is_authenticate()) {
-			size_t newline_idx = buff.find("\n");
-			if (newline_idx != std::string::npos)
-				std::string	line = 
+			if (!client.handel_PASS(*this)) {
+				send_msg("you are not authenticated ! (try again)\n", fd);
+				break ;
+			}
 		}
+		if (!client.is_register()) {
+			if (!client.handel_register(*this)) {
+				send_msg("you are not registered ! (try again)\n", fd);
+				break ;
+			}
+		}
+		// client.handel_CMDS();
 	}
 }
 
@@ -172,5 +185,17 @@ void	server::clear_client(int fd) {
 			clients.erase(clients.begin() + (i - 1));
 			break ;
 		}
+	}
+}
+
+bool	server::compaire_password(std::string &s) {
+	try {
+		if (s.compare(0, this->password.size(), this->password) == 0)
+			return true;
+		else
+			return false;
+	}
+	catch (std::exception &e) {
+		return false;
 	}
 }

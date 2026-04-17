@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/socket.h>
 #include <string>
 #include <string.h>
@@ -12,6 +13,7 @@
 #include <poll.h>
 #include <csignal>
 #include "client.hpp"
+#include "help_func.hpp"
 
 class server
 {
@@ -35,6 +37,7 @@ public:
 	void	read_data(client client);
 	void	clear_fds();
 	void	clear_client(int fd);
+	bool	compaire_password(std::string &s);
 
 	static void	signalhandler(int sig);
 };
