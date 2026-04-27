@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <cctype>
 #include "server.hpp"
 #include "help_func.hpp"
 
@@ -25,6 +26,7 @@ public:
 	int getFd() const;
 	std::string getIp() const;
 	std::string getBuffer() const;
+	std::string	getNickname() const;
 	void setFd(int _fd);
 	void setIp(std::string _ip);
 	bool is_authenticate() const;
@@ -35,6 +37,8 @@ public:
 	bool handel_PASS(server &serv);
 	bool handel_register(server &serv);
 	void handel_CMDS();
+
+	bool	valid_nick(std::string nick, server serv);
 };
 
 void send_msg(std::string msg, int client_fd);

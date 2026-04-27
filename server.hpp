@@ -38,6 +38,8 @@ public:
 	void	clear_fds();
 	void	clear_client(int fd);
 	bool	compaire_password(std::string &s);
+	// bool	isNicknametaken(const std::string nick);
+	std::vector<client>	getClients() const;
 
 	static void	signalhandler(int sig);
 };

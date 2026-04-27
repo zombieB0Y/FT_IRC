@@ -199,3 +199,11 @@ bool	server::compaire_password(std::string &s) {
 		return false;
 	}
 }
+
+std::vector<client>	server::getClients() const {
+	return this->clients;
+}
+
+// bool	server::isNicknametaken(const std::string nick) {
+
+// }
