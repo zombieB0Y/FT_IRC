@@ -64,7 +64,7 @@ bool    client::handel_PASS(server &serv) {
 				line.erase(0, 4);
 				ltrim(line);
 				if (!serv.compaire_password(line)) {
-					std::cerr << "wrong password !\n";
+					std::cerr << "wrong password !" << std::endl;
 					return false;
 				}
 				this->authenticate();
@@ -77,6 +77,7 @@ bool    client::handel_PASS(server &serv) {
 			return false;
 		}
 	}
+	return false;
 }
 
 bool	client::handel_register(server &serv) {
@@ -90,7 +91,7 @@ bool	client::handel_register(server &serv) {
 		ltrim(clean_line);
 		
 		if (clean_line.compare(0, 4, "NICK") == 0) {
-			std::string nick = clean_line.substr(4, clean_line.length());
+			std::string nick = clean_line.substr(4);
 			ltrim(nick);
 			if (this->valid_nick(nick, serv))
 				this->_nickname = nick;

@@ -5,6 +5,8 @@
 #include "server.hpp"
 #include "help_func.hpp"
 
+class server;
+
 class client
 {
 private:

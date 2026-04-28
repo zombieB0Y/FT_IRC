@@ -7,9 +7,7 @@ bool server::signal = false;
 void	send_msg(std::string msg, int client_fd) {
 	ssize_t bytes_sent = send(client_fd, msg.c_str(), msg.length(), 0);
 	if (bytes_sent == -1) {
-		std::cerr << "send(): failed to send welcome message to client " << client_fd << "\n";
-	} else {
-		std::cout << "Client <" << client_fd << "> Connected. Welcome message sent.\n";
+		std::cerr << "send(): failed to send welcome message to client " << client_fd << std::endl;
 	}
 }
 
@@ -70,8 +68,10 @@ void	server::accept_new_client() {
 	this->clients.push_back(client);
 }
 
-void	server::read_data(client client) {
-	
+void	server::read_data(client &client) {
+
+	if (client.getFd() == -1)
+		return ;
 	std::string	buff;
 	int max_bytes = 1024;
 	buff.resize(max_bytes);
@@ -82,6 +82,7 @@ void	server::read_data(client client) {
 		std::cerr << "Client <" << client.getIp() << "> Disconnected" << std::endl;
 		clear_client(fd);
 		close(fd);
+		return ;
 	}
 	client.append_Buffer(buff);
 	bool	done = false;
@@ -93,13 +94,16 @@ void	server::read_data(client client) {
 				break ;
 			}
 		}
-		if (!client.is_register()) {
-			if (!client.handel_register(*this)) {
-				send_msg("you are not registered ! (try again)\n", fd);
-				break ;
-			}
-		}
+		// if (!client.is_register()) {
+		// 	if (!client.handel_register(*this)) {
+		// 		send_msg("you are not registered ! (try again)\n", fd);
+		// 		break ;
+		// 	}
+		// }
 		// client.handel_CMDS();
+		else {
+			done = true;
+		}
 	}
 }
 
@@ -114,8 +118,11 @@ void	server::server_init() {
 			if (fds[i].revents & POLLIN) {
 				if (fds[i].fd == this->serverSocket)
 					accept_new_client();
-				else
-					read_data(clients[i - 1]);
+				else {
+					client	*current_client	= get_client(fds[i].fd);
+					if (current_client != NULL)
+						read_data(*current_client);
+				}
 			}
 		}
 	}
@@ -178,14 +185,19 @@ void	server::clear_fds() {
 	}
 }
 
-void	server::clear_client(int fd) {
-	for (size_t i = 0; i < fds.size(); i++) {
-		if (fds[i].fd == fd) {
-			fds.erase(fds.begin() + i);
-			clients.erase(clients.begin() + (i - 1));
-			break ;
-		}
-	}
+void server::clear_client(int fd) {
+    for (size_t i = 0; i < fds.size(); i++) {
+        if (fds[i].fd == fd) {
+            fds.erase(fds.begin() + i);
+            break;
+        }
+    }
+    for (size_t i = 0; i < clients.size(); i++) {
+        if (clients[i].getFd() == fd) {
+            clients.erase(clients.begin() + i);
+            break;
+        }
+    }
 }
 
 bool	server::compaire_password(std::string &s) {
@@ -207,3 +219,11 @@ std::vector<client>	server::getClients() const {
 // bool	server::isNicknametaken(const std::string nick) {
 
 // }
+
+client	*server::get_client(int fd) {
+	for (std::vector<client>::iterator it = this->clients.begin(); it != this->clients.end(); ++it) {
+		if (it->getFd() == fd)
+			return &(*it);
+	}
+	return NULL;
+}

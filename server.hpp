@@ -15,6 +15,8 @@
 #include "client.hpp"
 #include "help_func.hpp"
 
+class client;
+
 class server
 {
 private:
@@ -34,10 +36,12 @@ public:
 	void	server_init();
 	void	init_server_socket();
 	void	accept_new_client();
-	void	read_data(client client);
+	void	read_data(client &client);
 	void	clear_fds();
 	void	clear_client(int fd);
 	bool	compaire_password(std::string &s);
+	client	*get_client(int fd);
+
 	// bool	isNicknametaken(const std::string nick);
 	std::vector<client>	getClients() const;
 
