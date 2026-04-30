@@ -84,7 +84,13 @@ void	server::read_data(client &client) {
 		close(fd);
 		return ;
 	}
-	client.append_Buffer(buff);
+	size_t	newline_idx;
+	if ((newline_idx = buff.find("\n")) != std::string::npos)
+		client.Replace_Buffer(buff);
+	else {
+		client.append_Buffer(buff);
+		return ;
+	}
 	bool	done = false;
 	std::string	line;
 	while (done != true) {
@@ -93,13 +99,16 @@ void	server::read_data(client &client) {
 				send_msg("you are not authenticated ! (try again)\n", fd);
 				break ;
 			}
+			else {
+				std::cout << "User <" << client.getIp() << "> is authenticated !" << std::endl;
+			}
 		}
-		// if (!client.is_register()) {
-		// 	if (!client.handel_register(*this)) {
-		// 		send_msg("you are not registered ! (try again)\n", fd);
-		// 		break ;
-		// 	}
-		// }
+		else if (!client.is_register()) {
+			if (!client.handel_register(*this)) {
+				send_msg("you are not registered ! (try again)\n", fd);
+				break ;
+			}
+		}
 		// client.handel_CMDS();
 		else {
 			done = true;

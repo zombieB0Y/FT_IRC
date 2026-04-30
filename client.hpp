@@ -36,11 +36,13 @@ public:
 	bool is_register() const;
 	void register_client();
 	void append_Buffer(std::string buff);
+	void Replace_Buffer(std::string buff);
+	void Erase_Buffer();
 	bool handel_PASS(server &serv);
 	bool handel_register(server &serv);
 	void handel_CMDS();
 
 	bool	valid_nick(std::string nick, server serv);
-};
+	bool	valid_user(std::string username);};
 
 void send_msg(std::string msg, int client_fd);
