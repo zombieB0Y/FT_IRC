@@ -1,23 +1,44 @@
-CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+# **************************************************************************** #
+#                                 Makefile                                     #
+# **************************************************************************** #
 
-NAME = ircserv
+NAME		= ircserv
+CXX			= c++
+CXXFLAGS	= -Wall -Wextra -Werror -std=c++98
+RM			= rm -f
 
-SRCS = server.cpp client.cpp main.cpp help_func.cpp
+# Source files (add all your .cpp files here)
+SRCS		= main.cpp \
+			  Server.cpp \
+			  Client.cpp \
+			  Channel.cpp \
 
-OBJS = $(SRCS:.cpp=.o)
+# Object files (replace .cpp with .o)
+OBJS		= $(SRCS:.cpp=.o)
 
-all: $(NAME) 
+# Colours for pretty output (optional)
+GREEN		= \033[0;32m
+RED			= \033[0;31m
+RESET		= \033[0m
+
+all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $(NAME) $(OBJS)
+	@$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
+	@echo "$(GREEN)✓ Compiled $(NAME) successfully$(RESET)"
+
+%.o: %.cpp
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
+	@echo "  Compiling $<"
 
 clean:
-	rm -f $(OBJS) 
+	@$(RM) $(OBJS)
+	@echo "$(RED)✗ Removed object files$(RESET)"
 
 fclean: clean
-	rm -f $(NAME) $(NAME_client)
+	@$(RM) $(NAME)
+	@echo "$(RED)✗ Removed $(NAME)$(RESET)"
 
 re: fclean all
 
-.PHONY: all clean fclean re client
+.PHONY: all clean fclean re
