@@ -72,46 +72,57 @@ void	server::read_data(client &client) {
 
 	if (client.getFd() == -1)
 		return ;
-	std::string	buff;
-	int max_bytes = 1024;
-	buff.resize(max_bytes);
-	int		fd = client.getFd();
-	ssize_t bytes = recv(fd, &buff[0], max_bytes , 0);
+	
+	try {
+		std::string	buff;
+		int max_bytes = 1024;
+		buff.resize(max_bytes);
+		int		fd = client.getFd();
+		ssize_t bytes = recv(fd, &buff[0], max_bytes , 0);
 
-	if(bytes <= 0) {
-		std::cerr << "Client <" << client.getIp() << "> Disconnected" << std::endl;
-		clear_client(fd);
-		close(fd);
-		return ;
-	}
-	size_t	newline_idx;
-	if ((newline_idx = buff.find("\n")) != std::string::npos)
-		client.Replace_Buffer(buff);
-	else {
+		if(bytes <= 0) {
+			std::cerr << "Client <" << client.getIp() << "> Disconnected" << std::endl;
+			clear_client(fd);
+			close(fd);
+			return ;
+		}
+		
+		// Always append new data to buffer
+		buff.resize(bytes);
 		client.append_Buffer(buff);
-		return ;
-	}
-	bool	done = false;
-	std::string	line;
-	while (done != true) {
-		if (!client.is_authenticate()) {
-			if (!client.handel_PASS(*this)) {
-				send_msg("you are not authenticated ! (try again)\n", fd);
-				break ;
+		
+		bool was_registered = client.is_register();
+		
+		// Keep processing commands while we have complete lines in the buffer
+		while (client.getBuffer().find('\n') != std::string::npos) {
+			if (!client.is_authenticate()) {
+				if (!client.handel_PASS(*this)) {
+					break;
+				}
+			}
+			else if (!client.is_register()) {
+				if (!client.handel_register(*this)) {
+					break;
+				}
+				// If just registered, send welcome messages
+				if (!was_registered && client.is_register()) {
+					send_msg(":irc.server 001 " + client.getNickname() + " :Welcome to the IRC Network\r\n", fd);
+					send_msg(":irc.server 002 " + client.getNickname() + " :Your host is irc.server\r\n", fd);
+					send_msg(":irc.server 003 " + client.getNickname() + " :This server was created recently\r\n", fd);
+					was_registered = true;
+				}
 			}
 			else {
-				std::cout << "User <" << client.getIp() << "> is authenticated !" << std::endl;
+				// Client is fully registered, process commands
+				client.handel_CMDS(*this);
 			}
 		}
-		else if (!client.is_register()) {
-			if (!client.handel_register(*this)) {
-				send_msg("you are not registered ! (try again)\n", fd);
-				break ;
-			}
-		}
-		// client.handel_CMDS();
-		else {
-			done = true;
+	}
+	catch(const std::exception &e) {
+		std::cerr << "Error in read_data for client " << client.getIp() << ": " << e.what() << std::endl;
+		if (client.getFd() != -1) {
+			clear_client(client.getFd());
+			close(client.getFd());
 		}
 	}
 }
@@ -186,11 +197,11 @@ void	server::clear_fds() {
 			close(clients[i].getFd());
 			clients[i].setFd(-1);
 		}
-		if (this->serverSocket != -1) {
-			std::cout << "SERVER <" << this->serverSocket << "> Disconnected" << std::endl;
-			close(this->serverSocket);
-			this->serverSocket = -1;
-		}
+	}
+	if (this->serverSocket != -1) {
+		std::cout << "SERVER <" << this->serverSocket << "> Disconnected" << std::endl;
+		close(this->serverSocket);
+		this->serverSocket = -1;
 	}
 }
 
@@ -221,7 +232,7 @@ bool	server::compaire_password(std::string &s) {
 	}
 }
 
-std::vector<client>	server::getClients() const {
+const std::vector<client>	&server::getClients() const {
 	return this->clients;
 }
 
@@ -232,6 +243,14 @@ std::vector<client>	server::getClients() const {
 client	*server::get_client(int fd) {
 	for (std::vector<client>::iterator it = this->clients.begin(); it != this->clients.end(); ++it) {
 		if (it->getFd() == fd)
+			return &(*it);
+	}
+	return NULL;
+}
+
+client	*server::get_client_by_nick(std::string nick) {
+	for (std::vector<client>::iterator it = this->clients.begin(); it != this->clients.end(); ++it) {
+		if (it->getNickname() == nick && it->getFd() != -1)
 			return &(*it);
 	}
 	return NULL;

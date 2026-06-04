@@ -60,128 +60,144 @@ void    client::Erase_Buffer() {
 }
 
 bool    client::handel_PASS(server &serv) {
-	rtrim(this->buffer);
-	ltrim(this->buffer);
-	this->append_Buffer("\n");
-
 	size_t newline_idx;
 	if ((newline_idx = this->buffer.find("\n")) != std::string::npos) {
 		std::string line = this->buffer.substr(0, newline_idx);
+		rtrim(line);
+		ltrim(line);
+		
+		if (line.empty()) {
+			this->buffer.erase(0, newline_idx + 1);
+			return false;
+		}
+		
 		try {
-			if (line.compare(0, 4, "PASS") == 0) {
-				line.erase(0, 4);
-				ltrim(line);
-				if (!serv.compaire_password(line)) {
-					std::cerr << "User <" << this->getIp() << "> :" << "wrong password !" << std::endl;
+			std::string cmd = to_upper(line.substr(0, (line.find(' ') != std::string::npos) ? line.find(' ') : line.length()));
+			if (cmd == "PASS") {
+				std::string pass_arg = line.substr(4);
+				ltrim(pass_arg);
+				rtrim(pass_arg);
+				
+				if (!serv.compaire_password(pass_arg)) {
+					send_msg(":irc.server 464 * :Password incorrect\r\n", this->fd);
+					this->buffer.erase(0, newline_idx + 1);
 					return false;
 				}
 				this->authenticate();
 				this->buffer.erase(0, newline_idx + 1);
-				send_msg("you are authenticated !\n", this->fd);
-				this->Erase_Buffer();	
+				send_msg(":irc.server :You are authenticated!\r\n", this->fd);
 				return true;
+			}
+			else {
+				// Non-PASS command received before authentication
+				send_msg(":irc.server 451 * :You have not registered\r\n", this->fd);
+				this->buffer.erase(0, newline_idx + 1);
+				return false;
 			}
 		}
 		catch (std::exception &e) {
-			this->Erase_Buffer();
+			this->buffer.erase(0, newline_idx + 1);
 			return false;
 		}
 	}
-	this->Erase_Buffer();
 	return false;
 }
 
 bool	client::handel_register(server &serv) {
-	// (void)serv;
 	size_t	newline_idx;
-	int		count = 2;
-	bool	flags[2] = {0};
 	
-	while ((newline_idx = this->buffer.find('\n')) != std::string::npos && count != 0) {
+	while ((newline_idx = this->buffer.find('\n')) != std::string::npos) {
 		std::string line = this->buffer.substr(0, newline_idx);
-		std::string clean_line = line;
-		rtrim(clean_line);
-		ltrim(clean_line);
+		rtrim(line);
+		ltrim(line);
 		
-		if (clean_line.compare(0, 4, "NICK") == 0 && !flags[0]) {
-			std::string nick = clean_line.substr(4);
-			ltrim(nick);
-			if (this->valid_nick(nick, serv)) {
-				this->_nickname = nick;
-				flags[0] = true;
+		if (line.empty()) {
+			this->buffer.erase(0, newline_idx + 1);
+			continue;
+		}
+		
+		// Extract command keyword
+		size_t space_pos = line.find(' ');
+		std::string cmd_str = (space_pos != std::string::npos) ? line.substr(0, space_pos) : line;
+		std::string cmd_upper = to_upper(cmd_str);
+		std::string args = (space_pos != std::string::npos) ? line.substr(space_pos + 1) : "";
+		ltrim(args);
+		
+		if (cmd_upper == "NICK") {
+			rtrim(args);
+			if (args.empty()) {
+				send_msg(":irc.server 431 * :No nickname given\r\n", this->fd);
+			} else if (this->valid_nick(args, serv)) {
+				this->_nickname = args;
+			} else {
+				send_msg(":irc.server 433 * " + args + " :Nickname is already in use\r\n", this->fd);
 			}
 		}
-		else if (clean_line.compare(0, 4, "USER") == 0 && !flags[1]) {
-			std::string user_info = clean_line.substr(4);
-			ltrim(user_info);
+		else if (cmd_upper == "USER") {
 			std::vector<std::string> tokens;
 			std::string token;
 			size_t i = 0;
-			while (i < user_info.length() && tokens.size() < 3) {
-				if (user_info[i] != ' ' && user_info[i] != ':') {
-					token += user_info[i];
+			
+			// Parse tokens before colon
+			while (i < args.length() && tokens.size() < 3) {
+				if (args[i] != ' ' && args[i] != ':') {
+					token += args[i];
 				}
-				else if (user_info[i] == ' ') {
+				else if (args[i] == ' ') {
 					if (!token.empty()) {
 						tokens.push_back(token);
 						token.clear();
 					}
 				}
-				else if (user_info[i] == ':') {
+				else if (args[i] == ':') {
 					break;
 				}
 				i++;
-			} // ---------------- i can add the hostname and the servername mn be3d if needed !
+			}
+			
 			if (!token.empty() && tokens.size() < 3) {
 				tokens.push_back(token);
 			}
+			
 			if (tokens.size() < 3) {
-				send_msg("461 USER :Not enough parameters\r\n", this->fd);
+				send_msg(":irc.server 461 * USER :Not enough parameters\r\n", this->fd);
 			}
 			else {
 				std::string parsed_user = tokens[0];
 				if (this->valid_user(parsed_user)) {
 					this->_username = parsed_user;
-					size_t colon_idx = user_info.find(':');
+					
+					// Find realname after colon
+					size_t colon_idx = args.find(':');
 					if (colon_idx != std::string::npos) {
-						this->_realname = user_info.substr(colon_idx + 1);
-						flags[1] = true;
+						this->_realname = args.substr(colon_idx + 1);
+					} else {
+						// No colon, use remaining tokens as realname
+						this->_realname = tokens[2];
 					}
-					else {
-						while (i < user_info.length() && std::isspace(user_info[i])) {
-							i++;
-						}
-						if (i < user_info.length()) {
-							this->_realname = user_info.substr(i);
-							flags[1] = true;
-						}
-						else {
-							send_msg("461 USER :Not enough parameters\r\n", this->fd);
-							this->_username.clear();
-						}
-					}
-				}
-				else {
-					send_msg("461 USER :Not a valid Username\r\n", this->fd);
-					this->_username.clear();
+				} else {
+					send_msg(":irc.server 468 * :Invalid username\r\n", this->fd);
 				}
 			}
 		}
+		else {
+			// Unknown command during registration - just skip it
+			send_msg(":irc.server 421 * " + cmd_upper + " :Unknown command\r\n", this->fd);
+		}
+		
 		this->buffer.erase(0, newline_idx + 1);
-		--count;
+		
+		// Check if registration is complete
 		if (!this->_nickname.empty() && !this->_username.empty()) {
 			this->register_client();
-			send_msg("001 " + this->_nickname + " :Welcome to the 1337 IRC Network " + this->_nickname + "\r\n", this->fd);
 			return true;
 		}
 	}
-	this->_username.clear();
-	this->_realname.clear();
-	send_msg("Error : no valid NICK or USER !\r\n", this->fd);
+	
 	return false;
 }
 
-bool	client::valid_nick(std::string nick, server serv) {
+bool	client::valid_nick(std::string nick, const server &serv) {
 	if (nick.empty() || nick.length() > 9) {
         return false;
     }
@@ -194,12 +210,13 @@ bool	client::valid_nick(std::string nick, server serv) {
             return false;
         }
     }
-	for (std::vector<client>::iterator it = serv.getClients().begin(); it != serv.getClients().end(); ++it) {
-    	if (it->getNickname() == nick) {
-      	  return true; 
+	// Check if nickname is already taken - should return false if taken (not valid)
+	for (std::vector<client>::const_iterator it = serv.getClients().begin(); it != serv.getClients().end(); ++it) {
+    	if (it->getNickname() == nick && it->getFd() != this->getFd()) {
+      	  return false; // Nickname is taken, so it's NOT valid
   	  	}
 	}
-    return false;
+    return true; // Nickname is available and valid
 }
 
 bool	client::valid_user(std::string username) {
@@ -227,8 +244,125 @@ std::string	client::getNickname() const {
 	return this->_nickname;
 }
 
-// ------------- not completed !! -------------------
+std::string	client::getUsername() const {
+	return this->_username;
+}
 
-void	client::handel_CMDS() {
+std::string	client::getRealname() const {
+	return this->_realname;
+}
 
+void	client::setNickname(std::string nick) {
+	this->_nickname = nick;
+}
+
+// ------------- Command Handler -------------------
+
+void	client::handel_CMDS(server &serv) {
+	size_t newline_idx;
+	
+	while ((newline_idx = this->buffer.find('\n')) != std::string::npos) {
+		std::string line = this->buffer.substr(0, newline_idx);
+		rtrim(line);
+		ltrim(line);
+		
+		if (line.empty()) {
+			this->buffer.erase(0, newline_idx + 1);
+			continue;
+		}
+		
+		// Extract command (everything before the first space)
+		size_t space_idx = line.find(' ');
+		std::string cmd = line.substr(0, space_idx);
+		std::string args = (space_idx != std::string::npos) ? line.substr(space_idx + 1) : "";
+		
+		// Convert command to uppercase for case-insensitive comparison
+		cmd = to_upper(cmd);
+		
+		if (cmd == "PRIVMSG") {
+			// PRIVMSG <target> :<message>
+			size_t colon_idx = args.find(':');
+			if (colon_idx != std::string::npos) {
+				std::string target = args.substr(0, colon_idx);
+				rtrim(target);
+				std::string message = args.substr(colon_idx + 1);
+				
+				// Send PRIVMSG to target
+				client *target_client = serv.get_client_by_nick(target);
+				if (target_client && target_client->getFd() != -1) {
+					std::string privmsg = ":" + this->_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+					send_msg(privmsg, target_client->getFd());
+				} else {
+					send_msg(":irc.server 401 " + this->_nickname + " " + target + " :No such nick/channel\r\n", this->fd);
+				}
+			}
+		}
+		else if (cmd == "QUIT") {
+			std::string quit_msg = (args.length() > 0 && args[0] == ':') ? args.substr(1) : args;
+			send_msg(":irc.server QUIT :" + quit_msg + "\r\n", this->fd);
+			serv.clear_client(this->fd);
+			close(this->fd);
+			this->setFd(-1);
+			break;
+		}
+		else if (cmd == "NICK") {
+			std::string new_nick = args;
+			ltrim(new_nick);
+			rtrim(new_nick);
+			if (this->valid_nick(new_nick, serv)) {
+				std::string old_nick = this->_nickname;
+				this->_nickname = new_nick;
+				send_msg(":" + old_nick + " NICK " + new_nick + "\r\n", this->fd);
+			} else {
+				send_msg(":irc.server 433 * " + new_nick + " :Nickname is already in use\r\n", this->fd);
+			}
+		}
+		else if (cmd == "JOIN") {
+			std::string channel = args;
+			ltrim(channel);
+			rtrim(channel);
+			if (channel.length() > 0 && channel[0] == '#') {
+				send_msg(":" + this->_nickname + " JOIN " + channel + "\r\n", this->fd);
+				send_msg(":irc.server 331 " + this->_nickname + " " + channel + " :End of /NAMES list.\r\n", this->fd);
+			} else {
+				send_msg(":irc.server 476 * " + channel + " :Bad channel mask\r\n", this->fd);
+			}
+		}
+		else if (cmd == "PART") {
+			std::string channel = args;
+			ltrim(channel);
+			rtrim(channel);
+			if (channel.length() > 0) {
+				send_msg(":" + this->_nickname + " PART " + channel + "\r\n", this->fd);
+			} else {
+				send_msg(":irc.server 461 * PART :Not enough parameters\r\n", this->fd);
+			}
+		}
+		else if (cmd == "WHO") {
+			std::string target = args;
+			ltrim(target);
+			rtrim(target);
+			const std::vector<client>	&clients = serv.getClients();
+			for (size_t i = 0; i < clients.size(); i++) {
+				if (clients[i].is_register()) {
+					// RFC 2812 format: :server 352 <requesting_nick> <channel> <user> <host> <server> <nick> <flags> :<hopcount> <realname>
+					std::string response = ":irc.server 352 " + this->_nickname + " * " + clients[i].getUsername() + " " 
+						+ clients[i].getIp() + " irc.server " + clients[i].getNickname() + " H :0 " + clients[i].getRealname();
+					send_msg(response + "\r\n", this->fd);
+				}
+			}
+			send_msg(":irc.server 315 " + this->_nickname + " * :End of /WHO list.\r\n", this->fd);
+		}
+		else if (cmd == "PING") {
+			std::string param = args;
+			ltrim(param);
+			send_msg(":irc.server PONG :" + param + "\r\n", this->fd);
+		}
+		else {
+			// Unknown command
+			send_msg(":irc.server 421 " + this->_nickname + " " + cmd + " :Unknown command\r\n", this->fd);
+		}
+		
+		this->buffer.erase(0, newline_idx + 1);
+	}
 }

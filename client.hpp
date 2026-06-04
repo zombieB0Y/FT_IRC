@@ -29,8 +29,11 @@ public:
 	std::string getIp() const;
 	std::string getBuffer() const;
 	std::string	getNickname() const;
+	std::string	getUsername() const;
+	std::string	getRealname() const;
 	void setFd(int _fd);
 	void setIp(std::string _ip);
+	void setNickname(std::string nick);
 	bool is_authenticate() const;
 	void authenticate();
 	bool is_register() const;
@@ -40,9 +43,9 @@ public:
 	void Erase_Buffer();
 	bool handel_PASS(server &serv);
 	bool handel_register(server &serv);
-	void handel_CMDS();
+	void handel_CMDS(server &serv);
 
-	bool	valid_nick(std::string nick, server serv);
+	bool	valid_nick(std::string nick, const server &serv);
 	bool	valid_user(std::string username);};
 
 void send_msg(std::string msg, int client_fd);

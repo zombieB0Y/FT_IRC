@@ -41,9 +41,10 @@ public:
 	void	clear_client(int fd);
 	bool	compaire_password(std::string &s);
 	client	*get_client(int fd);
+	client	*get_client_by_nick(std::string nick);
 
 	// bool	isNicknametaken(const std::string nick);
-	std::vector<client>	getClients() const;
+	const std::vector<client>	&getClients() const;
 
 	static void	signalhandler(int sig);
 };
