@@ -113,8 +113,12 @@ void Server::handleClientRead(int fd){
                 if (!line.empty() && line[line.size()-1] == '\r')
                     line.erase(line.size()-1);
 
-                if (!line.empty())
+                if (!line.empty()){
                     processLine(fd, line);
+                    if (clients.find(fd) == clients.end()) {
+                        return;
+                    }
+                }
             }
         }
         else if (n == 0){
