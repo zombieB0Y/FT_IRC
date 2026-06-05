@@ -1,23 +1,36 @@
-CXX = c++
+NAME     = ircserv
+
+CXX      = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-NAME = ircserv
+SRCDIR   = src
+INCDIR   = include
+OBJDIR   = obj
 
-SRCS = server.cpp client.cpp main.cpp help_func.cpp
+SRCS     = $(SRCDIR)/main.cpp       \
+           $(SRCDIR)/IrcServer.cpp  \
+           $(SRCDIR)/Commands.cpp   \
+           $(SRCDIR)/Client.cpp     \
+           $(SRCDIR)/Channel.cpp
 
-OBJS = $(SRCS:.cpp=.o)
+OBJS     = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRCS))
 
-all: $(NAME) 
+all: $(NAME)
 
 $(NAME): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $(NAME) $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "✓ $(NAME) built successfully"
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp
+	@mkdir -p $(OBJDIR)
+	$(CXX) $(CXXFLAGS) -I$(INCDIR) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) 
+	rm -rf $(OBJDIR)
 
 fclean: clean
-	rm -f $(NAME) $(NAME_client)
+	rm -f $(NAME)
 
 re: fclean all
 
-.PHONY: all clean fclean re client
+.PHONY: all clean fclean re
