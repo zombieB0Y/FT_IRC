@@ -290,6 +290,16 @@ void Server::maybeFinishRegistration(int fd) {
     }
 }
 
+std::vector<std::string> Server::splitString(const std::string& str, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(str);
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+
 void Server::cmdJoin(int fd, const std::vector<std::string>& args) {
     std::map<int, Client>::iterator it = clients.find(fd);
     if (it == clients.end())
@@ -306,66 +316,77 @@ void Server::cmdJoin(int fd, const std::vector<std::string>& args) {
         return;
     }
 
-    std::string channelName = args[1];
-    
-    if (channelName.empty() || channelName[0] != '#') {
-        sendNumeric(fd, 403, channelName + " :No such channel");
-        return;
+    // 1. Split the channels and keys (passwords) by commas
+    std::vector<std::string> channelsToJoin = splitString(args[1], ',');
+    std::vector<std::string> keys;
+    if (args.size() > 2) {
+        keys = splitString(args[2], ',');
     }
 
-    std::map<std::string, Channel>::iterator chIt = channels.find(channelName);
-    if (chIt == channels.end()) {
-        Channel newChannel;
-        newChannel.name = channelName;
-        channels[channelName] = newChannel;
-        chIt = channels.find(channelName);
-    }
-
-    Channel& ch = chIt->second;
-
-    if (ch.members.find(fd) != ch.members.end()) {
-        return;
-    }
-
-    if (ch.inviteOnly) {
-        if (ch.invited.find(fd) == ch.invited.end()) {
-            sendNumeric(fd, 473, channelName + " :Cannot join channel (+i)");
-            return;
+    // 2. Loop through every channel the user wants to join
+    for (size_t i = 0; i < channelsToJoin.size(); ++i) {
+        std::string channelName = channelsToJoin[i];
+        
+        if (channelName.empty() || channelName[0] != '#') {
+            sendNumeric(fd, 403, channelName + " :No such channel");
+            continue; // Skip this channel and move to the next one
         }
+
+        std::map<std::string, Channel>::iterator chIt = channels.find(channelName);
+        if (chIt == channels.end()) {
+            Channel newChannel;
+            newChannel.name = channelName;
+            channels[channelName] = newChannel;
+            chIt = channels.find(channelName);
+        }
+
+        Channel& ch = chIt->second;
+
+        // If they are already in the channel, do nothing
+        if (ch.members.find(fd) != ch.members.end()) {
+            continue; 
+        }
+
+        if (ch.inviteOnly) {
+            if (ch.invited.find(fd) == ch.invited.end()) {
+                sendNumeric(fd, 473, channelName + " :Cannot join channel (+i)");
+                continue;
+            }
+        }
+
+        // Match the password to the exact channel index
+        std::string key = (i < keys.size()) ? keys[i] : "";
+        
+        if (ch.hasKey && key != ch.key) {
+            sendNumeric(fd, 475, channelName + " :Cannot join channel (+k)");
+            continue;
+        }
+
+        if (ch.userLimit > 0 && static_cast<int>(ch.members.size()) >= ch.userLimit) {
+            sendNumeric(fd, 471, channelName + " :Cannot join channel (+l)");
+            continue;
+        }
+
+        // Successfully passed all bouncers! Let them in.
+        ch.members.insert(fd);
+        
+        if (ch.members.size() == 1) {
+            ch.operators.insert(fd);
+        }
+        
+        ch.invited.erase(fd);
+
+        std::string joinMsg = clientPrefix(fd) + " JOIN " + channelName;
+        broadcastToChannel(ch, joinMsg);
+
+        if (!ch.topic.empty()) {
+            sendNumeric(fd, 332, channelName + " :" + ch.topic);
+        } else {
+            sendNumeric(fd, 331, channelName + " :No topic is set");
+        }
+
+        sendNamesReply(fd, ch);
     }
-
-    std::string key;
-    if (args.size() > 2)
-        key = args[2];
-    
-    if (ch.hasKey && key != ch.key) {
-        sendNumeric(fd, 475, channelName + " :Cannot join channel (+k)");
-        return;
-    }
-
-    if (ch.userLimit > 0 && static_cast<int>(ch.members.size()) >= ch.userLimit) {
-        sendNumeric(fd, 471, channelName + " :Cannot join channel (+l)");
-        return;
-    }
-
-    ch.members.insert(fd);
-    
-    if (ch.members.size() == 1) {
-        ch.operators.insert(fd);
-    }
-    
-    ch.invited.erase(fd);
-
-    std::string joinMsg = clientPrefix(fd) + " JOIN " + channelName;
-    broadcastToChannel(ch, joinMsg);
-
-    if (!ch.topic.empty()) {
-        sendNumeric(fd, 332, channelName + " :" + ch.topic);
-    } else {
-        sendNumeric(fd, 331, channelName + " :No topic is set");
-    }
-
-    sendNamesReply(fd, ch);
 }
 
 void Server::sendNamesReply(int fd, const Channel& ch) {
@@ -746,6 +767,9 @@ void Server::cmdMode(int fd, const std::vector<std::string>& args) {
         }
     }
     std::string modeChangeMsg = clientPrefix(fd) + " MODE " + target + " " + modeStr;
+    for (size_t i = 3; i < args.size(); ++i) {
+        modeChangeMsg += " " + args[i];
+    }
     broadcastToChannel(ch, modeChangeMsg);
 }
 
@@ -756,6 +780,9 @@ void Server::ensureChannelOperator(Channel& ch) {
     if (ch.operators.empty()) {
         int firstMember = *ch.members.begin();
         ch.operators.insert(firstMember);
+        std::string newOpNick = clients[firstMember].getNick();
+        std::string modeMsg = ":" + serverName + " MODE " + ch.name + " +o " + newOpNick;
+        broadcastToChannel(ch, modeMsg);
     }
 }
 
@@ -901,7 +928,7 @@ void Server::processLine(int fd, const std::string& line){
     std::vector<std::string> parsedLine = parseCommand(line);
     if (parsedLine.empty())
         return ;
-    if (parsedLine[0] == "CAP")
+    if (parsedLine[0] == "CAP" || parsedLine[0] == "WHO")
         return;
     if (parsedLine[0] == "PASS")
         cmdPass(fd, parsedLine);
@@ -928,6 +955,11 @@ void Server::processLine(int fd, const std::string& line){
             sendRaw(fd, ":" + serverName + " PONG " + serverName + " :" + parsedLine[1]);
         else
             sendRaw(fd, ":" + serverName + " PONG " + serverName);
+    }
+    else if (parsedLine[0] == "QUIT") {
+        std::string reason = (parsedLine.size() > 1) ? parsedLine[1] : "Client quit";
+        disconnectClient(fd, reason);
+        return;
     }
     else{
         sendNumeric(fd, 421, parsedLine[0] + " :Unknown command");

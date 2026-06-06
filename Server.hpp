@@ -60,6 +60,7 @@ private:
     void sendNamesReply(int fd, const Channel& ch);
     void ensureChannelOperator(Channel& ch);
     void removeClientFromAllChannels(int fd, const std::string& partReason);
+    std::vector<std::string> Server::splitString(const std::string& str, char delimiter);
 
     void cmdPass(int fd, const std::vector<std::string>& args);
     void cmdNick(int fd, const std::vector<std::string>& args);
