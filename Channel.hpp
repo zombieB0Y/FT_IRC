@@ -3,20 +3,26 @@
 #include <set>
 #include <string>
 
+// ─── Channel ────────────────────────────────────────────────────────────────
+// Represents a single IRC channel and its state.
+
 class Channel {
-    public:
-        std::string name;
-        std::string topic;
+public:
+    // ── Identity ─────────────────────────────────────────────────────────────
+    std::string name;
+    std::string topic;
 
-        bool inviteOnly;
-        bool topicOpOnly;
-        bool hasKey;
-        std::string key;
-        int userLimit;
+    // ── Mode flags ───────────────────────────────────────────────────────────
+    bool        inviteOnly;   // +i : only invited users may join
+    bool        topicOpOnly;  // +t : only operators may change the topic
+    bool        hasKey;       // +k : channel is key-protected
+    std::string key;          // the key value when hasKey == true
+    int         userLimit;    // +l : 0 means no limit
 
-        std::set<int> members;
-        std::set<int> operators;
-        std::set<int> invited;
+    // ── Member sets (keyed by client fd) ─────────────────────────────────────
+    std::set<int> members;
+    std::set<int> operators;
+    std::set<int> invited;
 
-        Channel();
+    Channel();
 };

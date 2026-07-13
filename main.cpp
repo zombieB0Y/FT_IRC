@@ -1,48 +1,52 @@
 #include "Server.hpp"
-#include "Client.hpp"
-#include "Channel.hpp"
 #include <cstdlib>
+#include <sstream>
 
-bool valid_port(std::string port){
-    std::stringstream ss;
-    int p = 0;
-    ss << port;
-    ss >> p;
+// ─── Argument validation ──────────────────────────────────────────────────────
+
+static bool validPort(const std::string& portStr)
+{
+    std::istringstream ss(portStr);
+    int port = 0;
+    ss >> port;
     if (ss.fail() || !ss.eof())
         return false;
-    if (p < 1 || p > 65535)
-        return false;
-    return true;
-}
-bool empty_pass(std::string pass){
-    if (pass.length() == 0)
-        return true;
-    std::string whitespace = " \t\n\r";
-    size_t start = pass.find_first_not_of(whitespace);
-    if (start == std::string::npos)
-        return true;
-    return false;
+    return port >= 1 && port <= 65535;
 }
 
+static bool emptyPassword(const std::string& pass)
+{
+    if (pass.empty())
+        return true;
+    const std::string ws = " \t\n\r";
+    return pass.find_first_not_of(ws) == std::string::npos;
+}
 
-int main(int argc, char** argv){
-    if (argc != 3){
-        std::cerr << "Usage: ./ircserv <port> <pass>" << std::endl;
+// ─── Entry point ─────────────────────────────────────────────────────────────
+
+int main(int argc, char** argv)
+{
+    if (argc != 3) {
+        std::cerr << "Usage: ./ircserv <port> <password>" << std::endl;
         return 1;
     }
-    if (!valid_port(argv[1])){
-        std::cerr << "Not a valid port" << std::endl;
+    if (!validPort(argv[1])) {
+        std::cerr << "Error: invalid port number" << std::endl;
         return 1;
     }
-    if (empty_pass(argv[2])){
-        std::cerr << "password must not be empty" << std::endl;
+    if (emptyPassword(argv[2])) {
+        std::cerr << "Error: password must not be empty or whitespace-only" << std::endl;
         return 1;
     }
+
     int port = std::atoi(argv[1]);
-    Server ser(port, argv[2]);
-    if (!ser.init()){
-        std::cerr << "Could not start the server" << std::endl;
+    Server server(port, argv[2]);
+
+    if (!server.init()) {
+        std::cerr << "Error: could not start the server" << std::endl;
         return 1;
     }
-    ser.run();
+
+    server.run();
+    return 0;
 }

@@ -1,75 +1,44 @@
 #include "Client.hpp"
 
-Client::Client() : fd(-1), port(0), passAccepted(false), hasNick(false), hasUser(false), welcomed(false) {}
+// ─── Constructor ─────────────────────────────────────────────────────────────
 
-bool Client::getHasNick() const{
-    return hasNick;
-}
+Client::Client()
+    : fd(-1)
+    , port(0)
+    , passAccepted(false)
+    , hasNick(false)
+    , hasUser(false)
+    , welcomed(false)
+{}
 
-void Client::setRealname(const std::string& r) {
-    realname = r;
-}
+// ─── Connection metadata ─────────────────────────────────────────────────────
 
-void Client::setHasUser(bool n){
-    hasUser = n;
-}
+void Client::setFd(int f)               { fd   = f; }
+void Client::setIp(const std::string& i){ ip   = i; }
+void Client::setPort(int p)             { port = p; }
 
-const std::string& Client::getRealname() const {
-    return realname;
-}
+int                Client::getFd()   const { return fd;   }
+const std::string& Client::getIp()   const { return ip;   }
+int                Client::getPort() const { return port; }
 
-const std::string& Client::getIp() const {
-    return ip;
-}
+// ─── Registration state ──────────────────────────────────────────────────────
 
-const std::string& Client::getUsername() const {
-    return username;
-}
+void Client::setPassAccepted(bool v) { passAccepted = v; }
+void Client::setHasNick(bool v)      { hasNick      = v; }
+void Client::setHasUser(bool v)      { hasUser      = v; }
+void Client::setWelcome(bool v)      { welcomed     = v; }
 
-void Client::setHasNick(bool n){
-    this->hasNick = n;
-}
+bool Client::getPassAccepted() const { return passAccepted; }
+bool Client::getHasNick()      const { return hasNick;      }
+bool Client::getHasUser()      const { return hasUser;      }
+bool Client::getWelcome()      const { return welcomed;     }
 
-bool Client::getWelcome() const{
-    return welcomed;
-}
+// ─── Identity ────────────────────────────────────────────────────────────────
 
-bool Client::getPassAccepted() const{
-    return passAccepted;
-}
+void Client::setNick(const std::string& n)     { nick     = n; }
+void Client::setUsername(const std::string& u) { username = u; }
+void Client::setRealname(const std::string& r) { realname = r; }
 
-void Client::setPassAccepted(bool value){
-    this->passAccepted = value;
-}
-
-void Client::setUsername(const std::string& u) {
-    username = u;
-}
-
-void Client::setNick(std::string n){
-    this->nick = n;
-}
-
-std::string Client::getNick() const{
-    return nick;
-}
-
-bool Client::getHasUser() const{
-    return hasUser;
-}
-
-void Client::setFd(int fds){
-    this->fd = fds;
-}
-
-void Client::setPort(int p) {
-    this->port = p;
-}
-
-void Client::setIp(std::string i) {
-    this->ip = i;
-}
-
-void Client::setWelcome(bool value) {
-    this->welcomed = value;
-}
+std::string        Client::getNick()     const { return nick;     }
+const std::string& Client::getUsername() const { return username; }
+const std::string& Client::getRealname() const { return realname; }

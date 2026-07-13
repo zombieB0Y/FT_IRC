@@ -2,40 +2,62 @@
 
 #include <string>
 
+// ─── Client ─────────────────────────────────────────────────────────────────
+// Holds the per-connection state for one IRC client.
+
 class Client {
-    public:
-        bool getHasNick() const;
-        bool getPassAccepted() const;
-        bool getHasUser() const;
-        bool getWelcome() const;
-        std::string getNick() const;
-        void setFd(int fds);
-        void setIp(std::string i);
-        void setPort(int p);
-        void setPassAccepted(bool value);
-        void setHasNick(bool n);
-        void setHasUser(bool n);
-        void setWelcome(bool value);
-        void setNick(std::string n);
-        void setUsername(const std::string& u);
-        void setRealname(const std::string& r);
-        const std::string& getRealname() const;
-        const std::string& getUsername() const;
-        const std::string& getIp() const;
-        Client();
-        std::string recvBuffer;
-        std::string sendBuffer;
-    private:
-        int fd;
-        std::string ip;
-        int port;
+public:
+    // ── I/O buffers (accessed directly by Server for efficiency) ─────────────
+    std::string recvBuffer;
+    std::string sendBuffer;
 
-        bool passAccepted;
-        bool hasNick;
-        bool hasUser;
-        bool welcomed;
-        std::string nick;
-        std::string username;
-        std::string realname;
+    // ── Constructor ──────────────────────────────────────────────────────────
+    Client();
 
+    // ── Connection metadata setters ──────────────────────────────────────────
+    void setFd(int fd);
+    void setIp(const std::string& ip);
+    void setPort(int port);
+
+    // ── Registration state setters ───────────────────────────────────────────
+    void setPassAccepted(bool value);
+    void setHasNick(bool value);
+    void setHasUser(bool value);
+    void setWelcome(bool value);
+
+    // ── Identity setters ─────────────────────────────────────────────────────
+    void setNick(const std::string& nick);
+    void setUsername(const std::string& username);
+    void setRealname(const std::string& realname);
+
+    // ── Getters ──────────────────────────────────────────────────────────────
+    int                getFd()           const;
+    const std::string& getIp()           const;
+    int                getPort()         const;
+
+    bool               getPassAccepted() const;
+    bool               getHasNick()      const;
+    bool               getHasUser()      const;
+    bool               getWelcome()      const;
+
+    std::string        getNick()         const;
+    const std::string& getUsername()     const;
+    const std::string& getRealname()     const;
+
+private:
+    // ── Connection ───────────────────────────────────────────────────────────
+    int         fd;
+    std::string ip;
+    int         port;
+
+    // ── Registration flags ───────────────────────────────────────────────────
+    bool        passAccepted;
+    bool        hasNick;
+    bool        hasUser;
+    bool        welcomed;
+
+    // ── Identity ─────────────────────────────────────────────────────────────
+    std::string nick;
+    std::string username;
+    std::string realname;
 };
