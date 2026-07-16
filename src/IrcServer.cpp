@@ -519,7 +519,7 @@ void IrcServer::_removeChannelIfEmpty(const std::string &name)
 	Channel *ch = _getChannel(name);
 	if (ch && ch->getMemberCount() == 0)
 	{
-		delete ch;
+		// delete ch;
 		_channels.erase(name);
 	}
 }

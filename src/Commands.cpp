@@ -182,6 +182,7 @@ void IrcServer::_cmdJoin(Client *c, const IrcMessage &m)
 			ch->addMember(c);
 		}
 		else {
+			// std::cout << "here ----- >\n";
 			ch = _getOrCreateChannel(name, c);
 		}
 		c->joinChannel(ch);
