@@ -522,7 +522,6 @@ void Server::cmdPass(int fd, const std::vector<std::string>& args)
     } else {
         std::string err = ":" + serverName + " 464 * :Password incorrect\r\n";
         send(fd, err.c_str(), err.size(), 0);
-        disconnectClient(fd, "Wrong password");
     }
 }
 
