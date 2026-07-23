@@ -1,0 +1,66 @@
+# ==========================================
+# C / C++ Compiled Binaries & Objects
+# ==========================================
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# Debug symbols & dumps
+*.dSYM/
+*.pdb
+*.idb
+*.ilk
+core
+vgcore.*
+
+# ==========================================
+# Build Directories & Systems (CMake, Make, etc.)
+# ==========================================
+build/
+bin/
+obj/
+out/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Makefile.cmake
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# ==========================================
+# VS Code & C/C++ Extension Caches
+# ==========================================
+.vscode/ipch/
+.vscode/.browse.vc.db*
+.vscode/*.log
+.vscode/
+
+# Note: Keeping tasks.json and launch.json in Git is usually helpful for team setup.
+# If you prefer to keep all personal VS Code settings private, uncomment the line below:
+# .vscode/
+
+# ==========================================
+# Editor Swap & Language Server Files
+# ==========================================
+*.swp
+*.swo
+*~
+*.bak
+.clangd/
+.cache/
+
+# ==========================================
+# Operating System Artifacts
+# ==========================================
+.DS_Store
+Thumbs.db
