@@ -521,7 +521,7 @@ void Server::cmdPass(int fd, const std::vector<std::string>& args)
         maybeFinishRegistration(fd);
     } else {
         std::string err = ":" + serverName + " 464 * :Password incorrect\r\n";
-        send(fd, err.c_str(), err.size(), 0);
+        sendNumeric(fd, 464, ":Password incorrect");
     }
 }
 
@@ -983,27 +983,48 @@ void Server::cmdMode(int fd, const std::vector<std::string>& args)
     bool   adding   = true;
     size_t argIndex = 3;
 
+    std::string appliedModes = "";
+    std::vector<std::string> appliedArgs;
+    char lastSign = '\0';
+
     for (size_t i = 0; i < modeStr.size(); ++i) {
         char m = modeStr[i];
 
         if      (m == '+') { adding = true;  continue; }
         else if (m == '-') { adding = false; continue; }
 
+        bool modeChanged = false;
+        std::string appliedArg = "";
+
         if (m == 'i') {
-            ch.inviteOnly = adding;
+            if (ch.inviteOnly != adding) { 
+                ch.inviteOnly = adding; 
+                modeChanged = true; 
+            }
         } else if (m == 't') {
-            ch.topicOpOnly = adding;
+            if (ch.topicOpOnly != adding) { 
+                ch.topicOpOnly = adding; 
+                modeChanged = true; 
+            }
         } else if (m == 'k') {
             if (adding) {
                 if (argIndex >= args.size()) {
                     sendNumeric(fd, 461, "MODE :Not enough parameters for +k");
                     continue;
                 }
-                ch.hasKey = true;
-                ch.key    = args[argIndex++];
+                std::string newKey = args[argIndex++];
+                if (!ch.hasKey || ch.key != newKey) {
+                    ch.hasKey = true;
+                    ch.key = newKey;
+                    modeChanged = true;
+                    appliedArg = newKey;
+                }
             } else {
-                ch.hasKey = false;
-                ch.key.clear();
+                if (ch.hasKey) {
+                    ch.hasKey = false;
+                    ch.key.clear();
+                    modeChanged = true;
+                }
             }
         } else if (m == 'o') {
             if (argIndex >= args.size()) {
@@ -1012,15 +1033,26 @@ void Server::cmdMode(int fd, const std::vector<std::string>& args)
             }
             const std::string& targetNick = args[argIndex++];
             std::map<std::string, int>::iterator ni = nickToFd.find(targetNick);
+            
             if (ni == nickToFd.end() || ch.members.find(ni->second) == ch.members.end()) {
                 sendNumeric(fd, 441, targetNick + " " + target + " :They aren't on that channel");
                 continue;
             }
-            if (adding)
-                ch.operators.insert(ni->second);
-            else {
-                ch.operators.erase(ni->second);
-                ensureChannelOperator(ch);
+            
+            int targetFd = ni->second;
+            if (adding) {
+                if (ch.operators.find(targetFd) == ch.operators.end()) {
+                    ch.operators.insert(targetFd);
+                    modeChanged = true;
+                    appliedArg = targetNick;
+                }
+            } else {
+                if (ch.operators.find(targetFd) != ch.operators.end()) {
+                    ch.operators.erase(targetFd);
+                    ensureChannelOperator(ch);
+                    modeChanged = true;
+                    appliedArg = targetNick;
+                }
             }
         } else if (m == 'l') {
             if (adding) {
@@ -1028,18 +1060,47 @@ void Server::cmdMode(int fd, const std::vector<std::string>& args)
                     sendNumeric(fd, 461, "MODE :Not enough parameters for +l");
                     continue;
                 }
-                int limit = std::atoi(args[argIndex++].c_str());
-                if (limit > 0)
+                std::string limitStr = args[argIndex++];
+                int limit = std::atoi(limitStr.c_str());
+                if (limit > 0 && ch.userLimit != limit) {
                     ch.userLimit = limit;
+                    modeChanged = true;
+                    appliedArg = limitStr;
+                }
             } else {
-                ch.userLimit = 0;
+                if (ch.userLimit != 0) {
+                    ch.userLimit = 0;
+                    modeChanged = true;
+                }
+            }
+        } else {
+            // Catch all unknown modes and send error 472
+            sendNumeric(fd, 472, std::string(1, m) + " :is unknown mode char to me");
+            continue;
+        }
+
+        // Only append to the output string if the mode successfully updated the channel state
+        if (modeChanged) {
+            char currentSign = adding ? '+' : '-';
+            if (currentSign != lastSign) {
+                appliedModes += currentSign;
+                lastSign = currentSign;
+            }
+            appliedModes += m;
+            if (!appliedArg.empty()) {
+                appliedArgs.push_back(appliedArg);
             }
         }
     }
 
-    // Echo the mode change back to the channel.
-    std::string modeChangeMsg = clientPrefix(fd) + " MODE " + target + " " + modeStr;
-    for (size_t i = 3; i < args.size(); ++i)
-        modeChangeMsg += " " + args[i];
+    // If nothing changed, do not broadcast a message
+    if (appliedModes.empty())
+        return;
+
+    // Construct and echo the cleanly filtered mode change back to the channel
+    std::string modeChangeMsg = clientPrefix(fd) + " MODE " + target + " " + appliedModes;
+    for (size_t i = 0; i < appliedArgs.size(); ++i) {
+        modeChangeMsg += " " + appliedArgs[i];
+    }
     broadcastToChannel(ch, modeChangeMsg);
 }
