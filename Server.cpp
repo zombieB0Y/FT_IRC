@@ -1,5 +1,7 @@
 #include "Server.hpp"
 
+volatile bool Server::running = false;
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Construction / destruction
 // ═════════════════════════════════════════════════════════════════════════════
@@ -9,7 +11,6 @@ Server::Server(int port, const std::string& pass)
     , password(pass)
     , serverName("ircserv")
     , listenFd(-1)
-    , running(false)
 {}
 
 Server::~Server()

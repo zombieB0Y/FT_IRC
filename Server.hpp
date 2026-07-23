@@ -30,6 +30,8 @@ public:
     bool init();
     void run();
 
+    static volatile bool running;
+
 private:
     // ── Configuration ────────────────────────────────────────────────────────
     int         port;
@@ -38,8 +40,6 @@ private:
 
     // ── Network state ────────────────────────────────────────────────────────
     int  listenFd;
-    bool running;
-
     std::vector<struct pollfd> pfds;
 
     // ── Client / channel registries ──────────────────────────────────────────
