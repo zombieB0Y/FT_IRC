@@ -55,7 +55,7 @@ bool Server::setupListenSocket()
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port        = htons(port);
 
-    if (bind(listenFd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1) {
+    if (bind(listenFd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
         std::cerr << "bind() failed" << std::endl;
         return false;
     }
@@ -141,7 +141,7 @@ void Server::acceptClient()
     while (true) {
         sockaddr_in addr;
         socklen_t   addrLen = sizeof(addr);
-        int clientFd = accept(listenFd, reinterpret_cast<sockaddr*>(&addr), &addrLen);
+        int clientFd = accept(listenFd, (struct sockaddr*)&addr, &addrLen);
 
         if (clientFd < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
