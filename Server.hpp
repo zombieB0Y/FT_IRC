@@ -31,6 +31,7 @@ public:
     void run();
 
     static volatile bool running;
+    bool    Passaccepted(Client c) const;
 
 private:
     // ── Configuration ────────────────────────────────────────────────────────
