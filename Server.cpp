@@ -56,6 +56,15 @@ bool Server::setupListenSocket()
 	addr.sin_addr.s_addr = INADDR_ANY;
 	addr.sin_port        = htons(port);
 
+    if (bind(listenFd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        std::cerr << "bind() failed" << std::endl;
+        return false;
+    }
+    if (listen(listenFd, 5) == -1) {
+        std::cerr << "listen() failed" << std::endl;
+        return false;
+    }
+    return true;
 	if (bind(listenFd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1) {
 		std::cerr << "bind() failed" << std::endl;
 		return false;
@@ -139,10 +148,10 @@ void Server::rebuildPollFds()
 
 void Server::acceptClient()
 {
-	while (true) {
-		sockaddr_in addr;
-		socklen_t   addrLen = sizeof(addr);
-		int clientFd = accept(listenFd, reinterpret_cast<sockaddr*>(&addr), &addrLen);
+    while (true) {
+        sockaddr_in addr;
+        socklen_t   addrLen = sizeof(addr);
+        int clientFd = accept(listenFd, (struct sockaddr*)&addr, &addrLen);
 
 		if (clientFd < 0) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -510,25 +519,25 @@ void Server::cmdPass(int fd, const std::vector<std::string>& args)
 
 	Client& c = it->second;
 
-	// FIX: block PASS only once fully welcomed, not as soon as passAccepted is
-	// set — this allows the client to retry the password before completing
-	// registration (e.g. after a wrong first attempt would have disconnected
-	// them, but also keeps the spec requirement of no re-registration).
-	if (c.getWelcome()) {
-		sendNumeric(fd, 462, ":You may not reregister");
-		return;
-	}
-	if (args.size() < 2) {
-		sendNumeric(fd, 461, "PASS :Not enough parameters");
-		return;
-	}
-	if (args[1] == password) {
-		c.setPassAccepted(true);
-		maybeFinishRegistration(fd);
-	} else {
-		std::string err = ":" + serverName + " 464 * :Password incorrect\r\n";
-		sendNumeric(fd, 464, ":Password incorrect");
-	}
+    // FIX: block PASS only once fully welcomed, not as soon as passAccepted is
+    // set — this allows the client to retry the password before completing
+    // registration (e.g. after a wrong first attempt would have disconnected
+    // them, but also keeps the spec requirement of no re-registration).
+    if (c.getWelcome()) {
+        sendNumeric(fd, 462, ":You may not reregister");
+        return;
+    }
+    if (args.size() < 2) {
+        sendNumeric(fd, 461, "PASS :Not enough parameters");
+        return;
+    }
+    if (args[1] == password) {
+        c.setPassAccepted(true);
+        maybeFinishRegistration(fd);
+    } else {
+        std::string err = ":" + serverName + " 464 * :Password incorrect\r\n";
+        sendNumeric(fd, 464, ":Password incorrect");
+    }
 }
 
 // ── NICK ─────────────────────────────────────────────────────────────────────
@@ -985,67 +994,128 @@ void Server::cmdMode(int fd, const std::vector<std::string>& args)
 		return;
 	}
 
-	const std::string& modeStr = args[2];
-	bool   adding   = true;
-	size_t argIndex = 3;
+    const std::string& modeStr = args[2];
+    bool   adding   = true;
+    size_t argIndex = 3;
+
+    std::string appliedModes = "";
+    std::vector<std::string> appliedArgs;
+    char lastSign = '\0';
 
 	for (size_t i = 0; i < modeStr.size(); ++i) {
 		char m = modeStr[i];
 
-		if      (m == '+') { adding = true;  continue; }
-		else if (m == '-') { adding = false; continue; }
+        if      (m == '+') { adding = true;  continue; }
+        else if (m == '-') { adding = false; continue; }
 
-		if (m == 'i') {
-			ch.inviteOnly = adding;
-		} else if (m == 't') {
-			ch.topicOpOnly = adding;
-		} else if (m == 'k') {
-			if (adding) {
-				if (argIndex >= args.size()) {
-					sendNumeric(fd, 461, "MODE :Not enough parameters for +k");
-					continue;
-				}
-				ch.hasKey = true;
-				ch.key    = args[argIndex++];
-			} else {
-				ch.hasKey = false;
-				ch.key.clear();
-			}
-		} else if (m == 'o') {
-			if (argIndex >= args.size()) {
-				sendNumeric(fd, 461, "MODE :Not enough parameters for +/-o");
-				continue;
-			}
-			const std::string& targetNick = args[argIndex++];
-			std::map<std::string, int>::iterator ni = nickToFd.find(targetNick);
-			if (ni == nickToFd.end() || ch.members.find(ni->second) == ch.members.end()) {
-				sendNumeric(fd, 441, targetNick + " " + target + " :They aren't on that channel");
-				continue;
-			}
-			if (adding)
-				ch.operators.insert(ni->second);
-			else {
-				ch.operators.erase(ni->second);
-				ensureChannelOperator(ch);
-			}
-		} else if (m == 'l') {
-			if (adding) {
-				if (argIndex >= args.size()) {
-					sendNumeric(fd, 461, "MODE :Not enough parameters for +l");
-					continue;
-				}
-				int limit = std::atoi(args[argIndex++].c_str());
-				if (limit > 0)
-					ch.userLimit = limit;
-			} else {
-				ch.userLimit = 0;
-			}
-		}
-	}
+        bool modeChanged = false;
+        std::string appliedArg = "";
 
-	// Echo the mode change back to the channel.
-	std::string modeChangeMsg = clientPrefix(fd) + " MODE " + target + " " + modeStr;
-	for (size_t i = 3; i < args.size(); ++i)
-		modeChangeMsg += " " + args[i];
-	broadcastToChannel(ch, modeChangeMsg);
+        if (m == 'i') {
+            if (ch.inviteOnly != adding) { 
+                ch.inviteOnly = adding; 
+                modeChanged = true; 
+            }
+        } else if (m == 't') {
+            if (ch.topicOpOnly != adding) { 
+                ch.topicOpOnly = adding; 
+                modeChanged = true; 
+            }
+        } else if (m == 'k') {
+            if (adding) {
+                if (argIndex >= args.size()) {
+                    sendNumeric(fd, 461, "MODE :Not enough parameters for +k");
+                    continue;
+                }
+                std::string newKey = args[argIndex++];
+                if (!ch.hasKey || ch.key != newKey) {
+                    ch.hasKey = true;
+                    ch.key = newKey;
+                    modeChanged = true;
+                    appliedArg = newKey;
+                }
+            } else {
+                if (ch.hasKey) {
+                    ch.hasKey = false;
+                    ch.key.clear();
+                    modeChanged = true;
+                }
+            }
+        } else if (m == 'o') {
+            if (argIndex >= args.size()) {
+                sendNumeric(fd, 461, "MODE :Not enough parameters for +/-o");
+                continue;
+            }
+            const std::string& targetNick = args[argIndex++];
+            std::map<std::string, int>::iterator ni = nickToFd.find(targetNick);
+            
+            if (ni == nickToFd.end() || ch.members.find(ni->second) == ch.members.end()) {
+                sendNumeric(fd, 441, targetNick + " " + target + " :They aren't on that channel");
+                continue;
+            }
+            
+            int targetFd = ni->second;
+            if (adding) {
+                if (ch.operators.find(targetFd) == ch.operators.end()) {
+                    ch.operators.insert(targetFd);
+                    modeChanged = true;
+                    appliedArg = targetNick;
+                }
+            } else {
+                if (ch.operators.find(targetFd) != ch.operators.end()) {
+                    ch.operators.erase(targetFd);
+                    ensureChannelOperator(ch);
+                    modeChanged = true;
+                    appliedArg = targetNick;
+                }
+            }
+        } else if (m == 'l') {
+            if (adding) {
+                if (argIndex >= args.size()) {
+                    sendNumeric(fd, 461, "MODE :Not enough parameters for +l");
+                    continue;
+                }
+                std::string limitStr = args[argIndex++];
+                int limit = std::atoi(limitStr.c_str());
+                if (limit > 0 && ch.userLimit != limit) {
+                    ch.userLimit = limit;
+                    modeChanged = true;
+                    appliedArg = limitStr;
+                }
+            } else {
+                if (ch.userLimit != 0) {
+                    ch.userLimit = 0;
+                    modeChanged = true;
+                }
+            }
+        } else {
+            // Catch all unknown modes and send error 472
+            sendNumeric(fd, 472, std::string(1, m) + " :is unknown mode char to me");
+            continue;
+        }
+
+        // Only append to the output string if the mode successfully updated the channel state
+        if (modeChanged) {
+            char currentSign = adding ? '+' : '-';
+            if (currentSign != lastSign) {
+                appliedModes += currentSign;
+                lastSign = currentSign;
+            }
+            appliedModes += m;
+            if (!appliedArg.empty()) {
+                appliedArgs.push_back(appliedArg);
+            }
+        }
+    }
+
+    // If nothing changed, do not broadcast a message
+    if (appliedModes.empty())
+        return;
+
+    // Construct and echo the cleanly filtered mode change back to the channel
+    std::string modeChangeMsg = clientPrefix(fd) + " MODE " + target + " " + appliedModes;
+    for (size_t i = 0; i < appliedArgs.size(); ++i) {
+        modeChangeMsg += " " + appliedArgs[i];
+    }
+    broadcastToChannel(ch, modeChangeMsg);
 }
