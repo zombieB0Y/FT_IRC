@@ -34,6 +34,7 @@ public:
 	bool    Passaccepted(Client c) const;
 	void    _initcommadlist();
 	bool	_isacmd(std::string m) const;
+	Client&	_GetClient(int fd) {return (this->clients.find(fd)->second);}
 
 private:
 	// ── Configuration ────────────────────────────────────────────────────────

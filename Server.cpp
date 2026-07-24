@@ -494,13 +494,14 @@ void Server::processLine(int fd, const std::string& line)
 
 	// Commands handled before registration is complete.
 	if (cmd == "QUIT") {
-		std::string reason = (args.size() > 1) ? args[1] : "Client quit";
+		std::string reason = (args.size() > 1) ? args[1] : "Quit";
 		disconnectClient(fd, reason);
 		return;
 	}
 	if (cmd == "CAP" || cmd == "WHO")
 		return;
 	if (cmd == "PASS")  { cmdPass(fd, args); return; }
+
 	// cant do nick or any other thing without getting thought PASS
 
 	if(!Passaccepted(it->second)) {
@@ -556,7 +557,7 @@ void Server::cmdPass(int fd, const std::vector<std::string>& args)
 		return;
 	}
 	if (c.getPassAccepted()) {
-		sendNumeric(fd, ERR_ALREADYREGISTRED, ":Unauthorized command (already registered)");
+		sendNumeric(fd, ERR_ALREADYREGISTRED, ":Already Authorized");
 		return;
 	}
 	if (args[1] == password) 
@@ -658,8 +659,8 @@ void Server::cmdUser(int fd, const std::vector<std::string>& args)
 
 	Client& c = it->second;
 
-	if (c.getWelcome() || c.getHasUser()) {
-		sendNumeric(fd, ERR_ALREADYREGISTRED, ":You may not reregister");
+	if (c.getHasUser()) {
+		sendNumeric(fd, ERR_ALREADYREGISTRED, ":Already Registred");
 		return;
 	}
 	if (args.size() < 5) {
@@ -683,6 +684,26 @@ void Server::cmdJoin(int fd, const std::vector<std::string>& args)
 		return;
 	}
 
+	// if (args[1] == "0") { // part from all
+	// 	std::vector<std::string>	chans = _GetClient(fd).channels;
+	// 	for (size_t i = 0; i < chans.size(); ++i) {
+	// 		Channel& c = channels[chans.at(i)];
+			
+	// 		broadcastToChannel(c, clientPrefix(fd) + " PART " + chans.at(i));
+	// 		// _GetClient(fd).channels.erase() // need to remove the channel name from this vector and do it too to PART command
+	// 		c.members.erase(fd);
+	// 		c.operators.erase(fd);
+	// 		c.invited.erase(fd);
+
+	// 		ensureChannelOperator(c);
+
+	// 		if (c.members.empty())
+	// 			channels.erase(chans.at(i));
+	// 	}
+	// 	return;
+	// }
+
+	// JOIN #1,#2,#3 key1, key2
 	std::vector<std::string> channelNames = splitString(args[1], ',');
 	std::vector<std::string> keys;
 	if (args.size() > 2)
@@ -726,6 +747,7 @@ void Server::cmdJoin(int fd, const std::vector<std::string>& args)
 
 		// Admit the client.
 		ch.members.insert(fd);
+		// _GetClient(fd).channels.push_back(channelName); // -------------
 		if (ch.members.size() == 1)
 			ch.operators.insert(fd); // First joiner becomes operator.
 		ch.invited.erase(fd);

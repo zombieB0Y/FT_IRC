@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <algorithm>
+#include <vector>
 
 // ─── Client ─────────────────────────────────────────────────────────────────
 // Holds the per-connection state for one IRC client.
@@ -10,6 +12,7 @@ public:
     // ── I/O buffers (accessed directly by Server for efficiency) ─────────────
     std::string recvBuffer;
     std::string sendBuffer;
+    std::vector<std::string>    channels;
 
     // ── Constructor ──────────────────────────────────────────────────────────
     Client();
@@ -60,4 +63,5 @@ private:
     std::string nick;
     std::string username;
     std::string realname;
+
 };
