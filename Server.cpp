@@ -144,6 +144,7 @@ void Server::run()
 				handleClientWrite(pfds[i].fd);
 		}
 	}
+	_clear();
 }
 
 void Server::rebuildPollFds()
@@ -1159,4 +1160,12 @@ void Server::cmdMode(int fd, const std::vector<std::string>& args)
 		modeChangeMsg += " " + appliedArgs[i];
 	}
 	broadcastToChannel(ch, modeChangeMsg);
+}
+
+void	Server::_clear() {
+	for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it)
+		close(it->first);
+	clients.clear();
+	channels.clear();
+	nickToFd.clear();
 }
