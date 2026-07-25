@@ -433,13 +433,11 @@ std::vector<std::string> Server::parseCommand(const std::string& line)
 	std::vector<std::string> result;
 	size_t i = 0;
 
-	// Skip leading spaces.
 	while (i < line.size() && iswhitespace(line[i]))
 		++i;
 	if (i == line.size())
 		return result;
 
-	// Extract command token and upper-case it.
 	size_t start = i;
 	while (i < line.size() && !iswhitespace(line[i]))
 		++i;
@@ -448,14 +446,12 @@ std::vector<std::string> Server::parseCommand(const std::string& line)
 		cmd[j] = std::toupper(cmd[j]);
 	result.push_back(cmd);
 
-	// Extract remaining parameters.
 	while (i < line.size()) {
 		while (i < line.size() && iswhitespace(line[i]))
 			++i;
 		if (i == line.size())
 			break;
 		if (line[i] == ':') {
-			// Trailing parameter: everything after the colon.
 			result.push_back(line.substr(i + 1));
 			break;
 		}

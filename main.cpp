@@ -15,7 +15,7 @@ static void signalHandler(int sig)
 
 // ─── Argument validation ──────────────────────────────────────────────────────
 
-static bool validPort(const std::string& portStr)
+bool validPort(const std::string& portStr)
 {
 	std::istringstream ss(portStr);
 	int port = 0;
@@ -25,7 +25,7 @@ static bool validPort(const std::string& portStr)
 	return port >= 1 && port <= 65535;
 }
 
-static bool emptyPassword(const std::string& pass)
+bool emptyPassword(const std::string& pass)
 {
 	if (pass.empty())
 		return true;
@@ -34,6 +34,7 @@ static bool emptyPassword(const std::string& pass)
 }
 
 // ─── Entry point ─────────────────────────────────────────────────────────────
+
 
 int main(int argc, char** argv)
 {

@@ -18,6 +18,7 @@
 
 #include "Client.hpp"
 #include "Channel.hpp"
+#include "Bot/Bot.hpp"
 
 // ─── Server ──────────────────────────────────────────────────────────────────
 // Single-threaded IRC server using poll() for non-blocking I/O.
@@ -96,7 +97,8 @@ private:
 	// Server(const Server&);
 	// Server& operator=(const Server&);
 };
-
+bool validPort(const std::string& portStr);
+bool emptyPassword(const std::string& pass);
 #define RPL_WELCOME          1
 #define RPL_YOURHOST         2
 #define RPL_CREATED          3
