@@ -174,21 +174,18 @@ void Server::rebuildPollFds()
 
 void Server::acceptClient()
 {
-	while (true) {
 		sockaddr_in addr;
 		socklen_t   addrLen = sizeof(addr);
 		int clientFd = accept(listenFd, (struct sockaddr*)&addr, &addrLen);
 
 		if (clientFd < 0) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				return;
 			std::cerr << "accept() failed" << std::endl;
 			return;
 		}
 		if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) {
 			close(clientFd);
 			std::cerr << "fcntl() failed on accepted socket" << std::endl;
-			continue;
+			return;
 		}
 
 		Client c;
@@ -196,19 +193,17 @@ void Server::acceptClient()
 		c.setPort(ntohs(addr.sin_port));
 		c.setIp(inet_ntoa(addr.sin_addr));
 		clients[clientFd] = c;
-	}
 }
 
 void Server::handleClientRead(int fd)
 {
 	Client& c = clients[fd];
 
-	while (true) {
 		char    buf[4096];
 		ssize_t n = recv(fd, buf, sizeof(buf), 0);
 
 		if (n > 0) {
-			c.recvBuffer.append(buf, n); // can be changed to normal stirng no ?!
+			c.recvBuffer.append(buf, n);
 
 			// Process every complete IRC line (terminated by \n).
 			while (true) {
@@ -236,12 +231,9 @@ void Server::handleClientRead(int fd)
 			return;
 		}
 		else {
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				break;
 			disconnectClient(fd, "recv error");
 			return;
 		}
-	}
 }
 
 void Server::handleClientWrite(int fd)
@@ -256,9 +248,7 @@ void Server::handleClientWrite(int fd)
 
 	ssize_t n = send(fd, c.sendBuffer.c_str(), c.sendBuffer.size(), 0);
 	if (n < 0) {
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return;
-		disconnectClient(fd, "send error");
+		disconnectClient(fd, "send() error");
 		return;
 	}
 	if (n > 0)
@@ -304,7 +294,10 @@ void Server::sendNumeric(int fd, int code, const std::string& msg)
 		nick = it->second.getNick();
 
 	std::ostringstream oss;
-	oss << ":" << serverName << " " << code << " " << nick << " " << msg;
+	// oss << ":" << serverName << " " << code << " " << nick << " " << msg;
+	oss << ":" << serverName << " "
+        << std::setw(3) << std::setfill('0') << code
+        << " " << nick << " " << msg;
 	sendRaw(fd, oss.str());
 }
 
@@ -419,11 +412,21 @@ void Server::maybeFinishRegistration(int fd)
 	sendNumeric(fd, RPL_YOURHOST,  ":Your host is " + serverName + ", running version 1.0");
 	sendNumeric(fd, RPL_CREATED,  ":This server was created on January 1 2025");
 	sendNumeric(fd, RPL_MYINFO,  serverName + " 1.0 i itkol");
+	sendNumeric(fd, RPL_MOTDSTART, ":- " + serverName + " Message of the Day -");
+	sendNumeric(fd, RPL_MOTD,      ":-  Welcome to ft_irc!");
+	sendNumeric(fd, RPL_MOTD,  	   ":-  42 Network IRC Server");
+	sendNumeric(fd, RPL_ENDOFMOTD, ":End of MOTD command");
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Command parser
 // ═════════════════════════════════════════════════════════════════════════════
+
+
+bool iswhitespace(char c) {
+    std::string a = " \t\n\r\v\f";
+    return a.find(c) != std::string::npos;
+}
 
 std::vector<std::string> Server::parseCommand(const std::string& line)
 {
@@ -431,14 +434,14 @@ std::vector<std::string> Server::parseCommand(const std::string& line)
 	size_t i = 0;
 
 	// Skip leading spaces.
-	while (i < line.size() && line[i] == ' ')
+	while (i < line.size() && iswhitespace(line[i]))
 		++i;
 	if (i == line.size())
 		return result;
 
 	// Extract command token and upper-case it.
 	size_t start = i;
-	while (i < line.size() && line[i] != ' ')
+	while (i < line.size() && !iswhitespace(line[i]))
 		++i;
 	std::string cmd = line.substr(start, i - start);
 	for (size_t j = 0; j < cmd.size(); ++j)
@@ -447,7 +450,7 @@ std::vector<std::string> Server::parseCommand(const std::string& line)
 
 	// Extract remaining parameters.
 	while (i < line.size()) {
-		while (i < line.size() && line[i] == ' ')
+		while (i < line.size() && iswhitespace(line[i]))
 			++i;
 		if (i == line.size())
 			break;
@@ -457,7 +460,7 @@ std::vector<std::string> Server::parseCommand(const std::string& line)
 			break;
 		}
 		start = i;
-		while (i < line.size() && line[i] != ' ')
+		while (i < line.size() && !iswhitespace(line[i]))
 			++i;
 		result.push_back(line.substr(start, i - start));
 	}
@@ -652,6 +655,23 @@ void Server::cmdNick(int fd, const std::vector<std::string>& args)
 
 // ── USER ─────────────────────────────────────────────────────────────────────
 
+bool parseUserMode(const std::string token, int *value)
+{
+    if (token.empty())
+        return false;
+
+    for (std::string::size_type i = 0; i < token.size(); ++i)
+    {
+        if (!std::isdigit(static_cast<unsigned char>(token[i])))
+            return false;
+    }
+
+    std::istringstream iss(token);
+    iss >> (*value);
+    return !iss.fail();
+}
+
+
 void Server::cmdUser(int fd, const std::vector<std::string>& args)
 {
 	std::map<int, Client>::iterator it = clients.find(fd);
@@ -664,14 +684,17 @@ void Server::cmdUser(int fd, const std::vector<std::string>& args)
 		sendNumeric(fd, ERR_ALREADYREGISTRED, ":Already Registred");
 		return;
 	}
-	if (args.size() < 5) {
+	if (args.size() != 5) {
 		sendNumeric(fd, ERR_NEEDMOREPARAMS, "USER :Not enough parameters");
 		return;
 	}
-
-	// USER <username> <hostname> <servername> :<realname>
+	int	mode;
+	if (!parseUserMode(args[2], &mode))
+		mode = 0;
+	// USER <username> <mode> <unused> :<realname>
 	c.setUsername(args[1]);
 	c.setRealname(args[4]);
+	(void)mode; // ignore for now
 	c.setHasUser(true);
 	maybeFinishRegistration(fd);
 }
@@ -773,37 +796,39 @@ void Server::cmdPart(int fd, const std::vector<std::string>& args)
 		return;
 	}
 
-	const std::string& channelName = args[1];
+	std::vector<std::string> channelName = splitString(args[1], ',');
+	// const std::string& channelName = args[1];
 	std::string reason = (args.size() > 2) ? args[2] : clients[fd].getNick();
-
-	if (channelName.empty() || channelName[0] != '#') {
-		sendNumeric(fd, ERR_NOSUCHCHANNEL, channelName + " :No such channel");
-		return;
+	for (size_t i = 0; i < channelName.size(); ++i) {
+		if (channelName.at(i).empty() || channelName.at(i)[0] != '#') {
+			sendNumeric(fd, ERR_NOSUCHCHANNEL, channelName.at(i) + " :No such channel");
+			return;
+		}
+	
+		std::map<std::string, Channel>::iterator chIt = channels.find(channelName.at(i));
+		if (chIt == channels.end()) {
+			sendNumeric(fd, ERR_NOSUCHCHANNEL, channelName.at(i) + " :No such channel");
+			return;
+		}
+	
+		Channel& ch = chIt->second;
+	
+		if (ch.members.find(fd) == ch.members.end()) {
+			sendNumeric(fd, ERR_NOTONCHANNEL, channelName.at(i) + " :You're not on that channel");
+			return;
+		}
+	
+		broadcastToChannel(ch, clientPrefix(fd) + " PART " + channelName.at(i) + " :" + reason);
+	
+		ch.members.erase(fd);
+		ch.operators.erase(fd);
+		ch.invited.erase(fd);
+	
+		ensureChannelOperator(ch);
+	
+		if (ch.members.empty())
+			channels.erase(channelName.at(i));
 	}
-
-	std::map<std::string, Channel>::iterator chIt = channels.find(channelName);
-	if (chIt == channels.end()) {
-		sendNumeric(fd, ERR_NOSUCHCHANNEL, channelName + " :No such channel");
-		return;
-	}
-
-	Channel& ch = chIt->second;
-
-	if (ch.members.find(fd) == ch.members.end()) {
-		sendNumeric(fd, ERR_NOTONCHANNEL, channelName + " :You're not on that channel");
-		return;
-	}
-
-	broadcastToChannel(ch, clientPrefix(fd) + " PART " + channelName + " :" + reason);
-
-	ch.members.erase(fd);
-	ch.operators.erase(fd);
-	ch.invited.erase(fd);
-
-	ensureChannelOperator(ch);
-
-	if (ch.members.empty())
-		channels.erase(channelName);
 }
 
 // ── PRIVMSG ──────────────────────────────────────────────────────────────────
@@ -815,36 +840,38 @@ void Server::cmdPrivmsg(int fd, const std::vector<std::string>& args)
 		return;
 	}
 
-	const std::string& target  = args[1];
-	const std::string& message = args[2];
 
-	if (!target.empty() && target[0] == '#') {
-		// Channel message.
-		std::map<std::string, Channel>::iterator chIt = channels.find(target);
-		if (chIt == channels.end()) {
-			sendNumeric(fd, ERR_NOSUCHCHANNEL, target + " :No such channel");
-			return;
+	std::vector<std::string> target = splitString(args[1], ',');
+	// const std::string& target  = args[1];
+	const std::string& message = args[2];
+	for (size_t	i = 0; i < target.size(); ++i) {
+		if (!target.at(i).empty() && target.at(i)[0] == '#') {
+			// Channel message.
+			std::map<std::string, Channel>::iterator chIt = channels.find(target.at(i));
+			if (chIt == channels.end()) {
+				sendNumeric(fd, ERR_NOSUCHCHANNEL, target.at(i) + " :No such channel");
+				return;
+			}
+			Channel& ch = chIt->second;
+			if (ch.members.find(fd) == ch.members.end()) {
+				sendNumeric(fd, ERR_NOTONCHANNEL, target.at(i) + " :You're not on that channel");
+				return;
+			}
+			std::string msg = clientPrefix(fd) + " PRIVMSG " + target.at(i) + " :" + message;
+			for (std::set<int>::const_iterator it = ch.members.begin();it != ch.members.end(); ++it)
+			{
+				if (*it != fd)
+					sendRaw(*it, msg);
+			}
+		} else {
+			// Private message to a nick.
+			std::map<std::string, int>::iterator it = nickToFd.find(target.at(i));
+			if (it == nickToFd.end()) {
+				sendNumeric(fd, ERR_NOSUCHNICK, target.at(i) + " :No such nick");
+				return;
+			}
+			sendRaw(it->second, clientPrefix(fd) + " PRIVMSG " + target.at(i) + " :" + message);
 		}
-		Channel& ch = chIt->second;
-		if (ch.members.find(fd) == ch.members.end()) {
-			sendNumeric(fd, ERR_NOTONCHANNEL, target + " :You're not on that channel");
-			return;
-		}
-		std::string msg = clientPrefix(fd) + " PRIVMSG " + target + " :" + message;
-		for (std::set<int>::const_iterator it = ch.members.begin();
-			 it != ch.members.end(); ++it)
-		{
-			if (*it != fd)
-				sendRaw(*it, msg);
-		}
-	} else {
-		// Private message to a nick.
-		std::map<std::string, int>::iterator ni = nickToFd.find(target);
-		if (ni == nickToFd.end()) {
-			sendNumeric(fd, ERR_NOSUCHNICK, target + " :No such nick");
-			return;
-		}
-		sendRaw(ni->second, clientPrefix(fd) + " PRIVMSG " + target + " :" + message);
 	}
 }
 
@@ -852,55 +879,68 @@ void Server::cmdPrivmsg(int fd, const std::vector<std::string>& args)
 
 void Server::cmdKick(int fd, const std::vector<std::string>& args)
 {
-	if (args.size() < 3) {
-		sendNumeric(fd, ERR_NEEDMOREPARAMS, "KICK :Not enough parameters");
-		return;
-	}
+    if (args.size() < 3) {
+        sendNumeric(fd, ERR_NEEDMOREPARAMS, "KICK :Not enough parameters");
+        return;
+    }
 
-	const std::string& channelName = args[1];
-	const std::string& targetNick  = args[2];
-	std::string        reason      = (args.size() > 3) ? args[3] : clients[fd].getNick();
+    std::vector<std::string> chanVals = splitString(args[1], ',');
+    std::vector<std::string> userVals = splitString(args[2], ',');
 
-	std::map<std::string, Channel>::iterator chIt = channels.find(channelName);
-	if (chIt == channels.end()) {
-		sendNumeric(fd, ERR_NOSUCHCHANNEL, channelName + " :No such channel");
-		return;
-	}
+    std::string reason = (args.size() > 3) ? args[3] : clients[fd].getNick();
 
-	Channel& ch = chIt->second;
+    if (chanVals.size() != 1 && chanVals.size() != userVals.size()) {
+        sendNumeric(fd, ERR_NEEDMOREPARAMS, "KICK :Mismatched channel and user lists");
+        return;
+    }
 
-	if (ch.members.find(fd) == ch.members.end()) {
-		sendNumeric(fd, ERR_NOTONCHANNEL, channelName + " :You're not on that channel");
-		return;
-	}
-	if (ch.operators.find(fd) == ch.operators.end()) {
-		sendNumeric(fd, ERR_CHANOPRIVSNEEDED, channelName + " :You're not channel operator");
-		return;
-	}
+    for (size_t i = 0; i < userVals.size(); ++i) {
+        
+        std::string channelName = (chanVals.size() == 1) ? chanVals[0] : chanVals[i];
+        std::string targetNick  = userVals[i];
 
-	std::map<std::string, int>::iterator ni = nickToFd.find(targetNick);
-	if (ni == nickToFd.end()) {
-		sendNumeric(fd, ERR_NOSUCHNICK, targetNick + " :No such nick");
-		return;
-	}
+        std::map<std::string, Channel>::iterator chIt = channels.find(channelName);
+        if (chIt == channels.end()) {
+            sendNumeric(fd, ERR_NOSUCHCHANNEL, channelName + " :No such channel");
+            continue;
+        }
 
-	int targetFd = ni->second;
-	if (ch.members.find(targetFd) == ch.members.end()) {
-		sendNumeric(fd, ERR_USERNOTINCHANNEL, targetNick + " " + channelName + " :They aren't on that channel");
-		return;
-	}
+        Channel& ch = chIt->second;
 
-	broadcastToChannel(ch, clientPrefix(fd) + " KICK " + channelName
-						   + " " + targetNick + " :" + reason);
+        if (ch.members.find(fd) == ch.members.end()) {
+            sendNumeric(fd, ERR_NOTONCHANNEL, channelName + " :You're not on that channel");
+            continue; 
+        }
+        if (ch.operators.find(fd) == ch.operators.end()) {
+            sendNumeric(fd, ERR_CHANOPRIVSNEEDED, channelName + " :You're not channel operator");
+            continue;
+        }
 
-	ch.members.erase(targetFd);
-	ch.operators.erase(targetFd);
-	ch.invited.erase(targetFd);
+        std::map<std::string, int>::iterator ni = nickToFd.find(targetNick);
+        if (ni == nickToFd.end()) {
+            sendNumeric(fd, ERR_NOSUCHNICK, targetNick + " :No such nick");
+            continue;
+        }
 
-	ensureChannelOperator(ch);
+        int targetFd = ni->second;
+        if (ch.members.find(targetFd) == ch.members.end()) {
+            sendNumeric(fd, ERR_USERNOTINCHANNEL, targetNick + " " + channelName + " :They aren't on that channel");
+            continue;
+        }
 
-	if (ch.members.empty())
-		channels.erase(channelName);
+        broadcastToChannel(ch, clientPrefix(fd) + " KICK " + channelName
+                               + " " + targetNick + " :" + reason);
+
+        ch.members.erase(targetFd);
+        ch.operators.erase(targetFd);
+        ch.invited.erase(targetFd);
+
+        ensureChannelOperator(ch);
+
+        if (ch.members.empty()) {
+            channels.erase(channelName);
+        }
+    }
 }
 
 // ── INVITE ───────────────────────────────────────────────────────────────────
