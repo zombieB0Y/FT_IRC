@@ -138,21 +138,21 @@ void Server::rebuildPollFds()
 
 void Server::acceptClient()
 {
-    while (true) {
+    // while (true) {
         sockaddr_in addr;
         socklen_t   addrLen = sizeof(addr);
         int clientFd = accept(listenFd, (struct sockaddr*)&addr, &addrLen);
 
         if (clientFd < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                return;
-            std::cerr << "accept() failed" << std::endl;
+            // if (errno == EAGAIN || errno == EWOULDBLOCK)
+            //     return;
+            // std::cerr << "accept() failed" << std::endl;
             return;
         }
         if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) {
             close(clientFd);
             std::cerr << "fcntl() failed on accepted socket" << std::endl;
-            continue;
+            return;
         }
 
         Client c;
@@ -160,14 +160,14 @@ void Server::acceptClient()
         c.setPort(ntohs(addr.sin_port));
         c.setIp(inet_ntoa(addr.sin_addr));
         clients[clientFd] = c;
-    }
+    // }
 }
 
 void Server::handleClientRead(int fd)
 {
     Client& c = clients[fd];
 
-    while (true) {
+    // while (true) {
         char    buf[4096];
         ssize_t n = recv(fd, buf, sizeof(buf), 0);
 
@@ -200,12 +200,12 @@ void Server::handleClientRead(int fd)
             return;
         }
         else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
-                break;
+            // if (errno == EAGAIN || errno == EWOULDBLOCK)
+            //     break;
             disconnectClient(fd, "recv error");
             return;
         }
-    }
+    // }
 }
 
 void Server::handleClientWrite(int fd)
@@ -220,8 +220,8 @@ void Server::handleClientWrite(int fd)
 
     ssize_t n = send(fd, c.sendBuffer.c_str(), c.sendBuffer.size(), 0);
     if (n < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-            return;
+        // if (errno == EAGAIN || errno == EWOULDBLOCK)
+        //     return;
         disconnectClient(fd, "send error");
         return;
     }
