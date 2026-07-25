@@ -1,40 +1,23 @@
 #include "Bot.hpp"
 
+volatile bool running;
 
-// bool valid_port(std::string port){
-// 	std::stringstream ss;
-// 	int p = 0;
-// 	ss << port;
-// 	ss >> p;
-// 	if (ss.fail() || !ss.eof())
-// 		return false;
-// 	if (p < 1 || p > 65535)
-// 		return false;
-// 	return true;
-// }
-// bool empty_pass(std::string pass){
-// 	if (pass.length() == 0)
-// 		return true;
-// 	std::string whitespace = " \t\n\r";
-// 	size_t start = pass.find_first_not_of(whitespace);
-// 	if (start == std::string::npos)
-// 		return true;
-// 	return false;
-// }
+static void signalHandler(int sig)
+{
+	(void)sig;
+	std::cout << "\nshutting down..." << std::endl;
+	running = false;
 
+}
 
 int Bot::connectToServer(){
 	_botFd = socket(AF_INET, SOCK_STREAM, 0);
-	if (!_botFd){
+	if (_botFd < 0){
 		std::cout << "failed to create a socket"  << std::endl;
 			return 0;
 	}
-	int flags = fcntl(_botFd, F_GETFL, 0);
-	if (fcntl(_botFd, F_SETFL, flags | O_NONBLOCK) == -1) {
-		std::cerr << "fcntl() failed: could not make socket non-blocking" << std::endl;
-		return 0;
-	}
 	struct sockaddr_in serverAdress;
+	std::memset(&serverAdress, 0, sizeof(serverAdress));
 	serverAdress.sin_family = AF_INET;
 	serverAdress.sin_addr.s_addr = inet_addr(_host.c_str());
 	serverAdress.sin_port = htons(_port);
@@ -216,8 +199,10 @@ void Bot::_handleCommand(const std::string &prefix,const std::string &cmd,const 
 		draw(prefix,cmd,args);
 }
 
-void Bot::run(){
-	while(true){
+void Bot::run() {
+	running = true;
+	while(running) {
+		
 		char tempBuffer[1024];
 		int bytesReceived = recv(_botFd, tempBuffer, sizeof(tempBuffer) - 1, 0);
 		if (bytesReceived <= 0)
@@ -225,15 +210,16 @@ void Bot::run(){
 		else{
 			tempBuffer[bytesReceived ] = '\0';
 			_buffer += tempBuffer;
-			while (true){
+			while (true) {
 				size_t pos = _buffer.find("\r\n",0);
 				
 				if (pos != std::string::npos){
 					read_message(_buffer.substr(0,pos));
 					_buffer.erase(0,pos + 2);
 				}
-				else
+				else {
 					break;
+				}
 			}
 		}
 	}
@@ -270,12 +256,20 @@ int main(int ac, char **argv){
 		std::cerr << "password must not be empty" << std::endl;
 		return 1;
 	}
+	struct sigaction sa;
+    sa.sa_handler = signalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; // The magic happens here: NO SA_RESTART
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    // sigaction(SIGPIPE, &sa, NULL);
 	std::string host = argv[1];
 	int port = atoi(argv[2]);
 	std::string password = argv[3];
-
-	Bot myBot(host,port,password);
 	
+	Bot myBot(host,port,password);
+
+	signal(SIGPIPE, SIG_IGN); // Ignore broken pipe
 	if(!myBot.connectToServer())
 		return 1;
 	myBot._regesterWithServer();

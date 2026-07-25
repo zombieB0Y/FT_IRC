@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <cstdlib>
+#include <csignal>
 
 struct Bot_command
 {
