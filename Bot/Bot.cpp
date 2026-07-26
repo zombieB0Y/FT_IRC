@@ -36,7 +36,7 @@ void Bot::_regesterWithServer(){
 	a[2] = "USER Bot 0 * :" + _nickname + "\r\n";
 	a[3] = "JOIN #GENERAL \r\n";
 	for(int i = 0; i < 4 ;i++)
-		send(_botFd,a[i].c_str(),a[i].size(),0);
+		send(_botFd, a[i].c_str(), a[i].size(), 0);
 }
 
 void Bot::setter(){
