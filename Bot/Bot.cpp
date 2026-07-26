@@ -53,7 +53,7 @@ void Bot::setter(){
 	jokesList.push_back(std::make_pair("Why do Java developers wear glasses?","Because they don't C#!"));
 	messages.push_back("PRIVMSG :🤖 Available commands for Bot1:\r\n");
 	messages.push_back("PRIVMSG :!joke - I'll tell you a funny joke.\r\n");
-	messages.push_back("PRIVMSG :!help - Shows this list of commands.\r\n");
+	messages.push_back("PRIVMSG :!hp - Shows this list of commands.\r\n");
 	messages.push_back("PRIVMSG :!manual - Shows the IRC server manual.\r\n");
 	messages.push_back("PRIVMSG :!draw <animal> - Draws an ASCII art of the specified animal (cat, dog, fish, rabbit, turtle).\r\n");
 	messages.push_back("PRIVMSG :!invite <#channel> - Invite the bot to a channel.\r\n");
