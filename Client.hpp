@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <algorithm>
+#include <vector>
 
 // ─── Client ─────────────────────────────────────────────────────────────────
 // Holds the per-connection state for one IRC client.
@@ -27,6 +29,7 @@ public:
     // ── I/O buffers (accessed directly by Server for efficiency) ─────────────
     std::string recvBuffer;
     std::string sendBuffer;
+    std::vector<std::string>    channels;
 
     // ── Constructor ──────────────────────────────────────────────────────────
     Client();
@@ -60,5 +63,22 @@ public:
     std::string        getNick()         const;
     const std::string& getUsername()     const;
     const std::string& getRealname()     const;
+
+private:
+    // ── Connection ───────────────────────────────────────────────────────────
+    int         fd;
+    std::string ip;
+    int         port;
+
+    // ── Registration flags ───────────────────────────────────────────────────
+    bool        passAccepted;
+    bool        hasNick;
+    bool        hasUser;
+    bool        welcomed;
+
+    // ── Identity ─────────────────────────────────────────────────────────────
+    std::string nick;
+    std::string username;
+    std::string realname;
 
 };
