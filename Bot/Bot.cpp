@@ -1,27 +1,10 @@
 #include "Bot.hpp"
 
-
-// bool valid_port(std::string port){
-// 	std::stringstream ss;
-// 	int p = 0;
-// 	ss << port;
-// 	ss >> p;
-// 	if (ss.fail() || !ss.eof())
-// 		return false;
-// 	if (p < 1 || p > 65535)
-// 		return false;
-// 	return true;
-// }
-// bool empty_pass(std::string pass){
-// 	if (pass.length() == 0)
-// 		return true;
-// 	std::string whitespace = " \t\n\r";
-// 	size_t start = pass.find_first_not_of(whitespace);
-// 	if (start == std::string::npos)
-// 		return true;
-// 	return false;
-// }
-
+Bot::Bot(std::string host, int port, std::string password) : _host(host), _port(port), _password(password) {
+	if (_host == "localhost")
+		_host = "127.0.0.1";
+	setter();
+};
 
 int Bot::connectToServer(){
 	_botFd = socket(AF_INET, SOCK_STREAM, 0);
@@ -108,24 +91,6 @@ void Bot::accept_invite(const std::vector<std::string> &args){
 	if (args.size() >= 2) {
 		std::string reply = "JOIN " + args[1] + "\r\n";
 		send(_botFd, reply.c_str(), reply.size(), 0);
-	}
-}
-void Bot::help(const std::string &prefix, const std::string &cmd, const std::vector<std::string> &args){
-	(void)cmd;
-	std::string target = args[0];    
-	if (target[0] != '#') {
-		size_t excl_pos = prefix.find('!');
-		if (excl_pos != std::string::npos) {
-			target = prefix.substr(1, excl_pos - 1);
-		}
-	}
-	unsigned int i = 0;
-	std::string reply;
-	while(i < manualLines.size()){
-		reply.clear();
-		reply = "PRIVMSG " + target + " :" + manualLines[i] + "\r\n";
-		send(_botFd, reply.c_str(), reply.size(), 0);
-		i++;
 	}
 }
 
@@ -222,6 +187,25 @@ void Bot::manual(const std::string &prefix, const std::string &cmd, const std::v
 		i++;
 	}
 }
+void Bot::help(const std::string &prefix, const std::string &cmd, const std::vector<std::string> &args){
+	(void)cmd;
+	std::string target = args[0];    
+	if (target[0] != '#') {
+		size_t excl_pos = prefix.find('!');
+		if (excl_pos != std::string::npos) {
+			target = prefix.substr(1, excl_pos - 1);
+		}
+	}
+	unsigned int i = 0;
+	std::string reply;
+	while(i < messages.size()){
+		reply.clear();
+		reply = "PRIVMSG " + target + " :" + messages[i] + "\r\n";
+		send(_botFd, reply.c_str(), reply.size(), 0);
+		i++;
+	}
+}
+
 
 void Bot::_handleCommand(const std::string &prefix,const std::string &cmd,const std::vector<std::string> &args){
 	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!joke") != std::string::npos)
