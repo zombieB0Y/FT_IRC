@@ -22,7 +22,7 @@ bool validPort(const std::string& portStr)
 	ss >> port;
 	if (ss.fail() || !ss.eof())
 		return false;
-	return port >= 1 && port <= 65535;
+	return port >= 0 && port <= 65535;
 }
 
 bool emptyPassword(const std::string& pass)

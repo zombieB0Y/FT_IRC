@@ -5,14 +5,24 @@ Bot::Bot(std::string host, int port, std::string password) : _host(host), _port(
 		_host = "127.0.0.1";
 	setter();
 };
+volatile bool running;
+
+static void signalHandler(int sig)
+{
+	(void)sig;
+	std::cout << "\nshutting down..." << std::endl;
+	running = false;
+
+}
 
 int Bot::connectToServer(){
 	_botFd = socket(AF_INET, SOCK_STREAM, 0);
-	if (!_botFd){
+	if (_botFd < 0){
 		std::cout << "failed to create a socket"  << std::endl;
 			return 0;
 	}
 	struct sockaddr_in serverAdress;
+	std::memset(&serverAdress, 0, sizeof(serverAdress));
 	serverAdress.sin_family = AF_INET;
 	serverAdress.sin_addr.s_addr = inet_addr(_host.c_str());
 	serverAdress.sin_port = htons(_port);
@@ -31,7 +41,7 @@ void Bot::_regesterWithServer(){
 	a[2] = "USER Bot 0 * :" + _nickname + "\r\n";
 	a[3] = "JOIN #GENERAL \r\n";
 	for(int i = 0; i < 4 ;i++)
-		send(_botFd,a[i].c_str(),a[i].size(),0);
+		send(_botFd, a[i].c_str(), a[i].size(), 0);
 }
 
 void Bot::setter(){
@@ -220,8 +230,10 @@ void Bot::_handleCommand(const std::string &prefix,const std::string &cmd,const 
 		draw(prefix,cmd,args);
 }
 
-void Bot::run(){
-	while(true){
+void Bot::run() {
+	running = true;
+	while(running) {
+		
 		char tempBuffer[1024];
 		int bytesReceived = recv(_botFd, tempBuffer, sizeof(tempBuffer) - 1, 0);
 		if (bytesReceived <= 0)
@@ -229,15 +241,16 @@ void Bot::run(){
 		else{
 			tempBuffer[bytesReceived ] = '\0';
 			_buffer += tempBuffer;
-			while (true){
+			while (true) {
 				size_t pos = _buffer.find("\r\n",0);
 				
 				if (pos != std::string::npos){
 					read_message(_buffer.substr(0,pos));
 					_buffer.erase(0,pos + 2);
 				}
-				else
+				else {
 					break;
+				}
 			}
 		}
 	}
@@ -274,12 +287,20 @@ int main(int ac, char **argv){
 		std::cerr << "password must not be empty" << std::endl;
 		return 1;
 	}
+	struct sigaction sa;
+    sa.sa_handler = signalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; // The magic happens here: NO SA_RESTART
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    // sigaction(SIGPIPE, &sa, NULL);
 	std::string host = argv[1];
 	int port = atoi(argv[2]);
 	std::string password = argv[3];
-
-	Bot myBot(host,port,password);
 	
+	Bot myBot(host,port,password);
+
+	signal(SIGPIPE, SIG_IGN); // Ignore broken pipe
 	if(!myBot.connectToServer())
 		return 1;
 	myBot._regesterWithServer();

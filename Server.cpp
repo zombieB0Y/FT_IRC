@@ -66,15 +66,6 @@ bool Server::setupListenSocket()
 		return false;
 	}
 	return true;
-	if (bind(listenFd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1) {
-		std::cerr << "bind() failed" << std::endl;
-		return false;
-	}
-	if (listen(listenFd, 5) == -1) {
-		std::cerr << "listen() failed" << std::endl;
-		return false;
-	}
-	return true;
 }
 
 
@@ -489,8 +480,6 @@ void Server::processLine(int fd, const std::string& line)
 	}
 	
 	std::map<int, Client>::iterator it = clients.find(fd);
-	if (it == clients.end())
-		return;
 
 	// Commands handled before registration is complete.
 	if (cmd == "QUIT") {
@@ -587,9 +576,7 @@ static bool _isValidNick(const std::string nick)
 void Server::cmdNick(int fd, const std::vector<std::string>& args)
 {
 	// FIX: removed stray semicolon that was present after the opening brace.
-	std::map<int, Client>::iterator it = clients.find(fd); // why always need to find the client why nt pass it as anrgumant !?
-	if (it == clients.end())
-		return;
+	std::map<int, Client>::iterator it = clients.find(fd);
 
 	if (args.size() < 2) {
 		sendNumeric(fd, ERR_NEEDMOREPARAMS, "NICK :Not enough parameters");
@@ -704,24 +691,25 @@ void Server::cmdJoin(int fd, const std::vector<std::string>& args)
 		return;
 	}
 
-	// if (args[1] == "0") { // part from all
-	// 	std::vector<std::string>	chans = _GetClient(fd).channels;
-	// 	for (size_t i = 0; i < chans.size(); ++i) {
-	// 		Channel& c = channels[chans.at(i)];
+	if (args[1] == "0") { // part from all
+		std::vector<std::string>	chans = _GetClient(fd).channels;
+		for (size_t i = 0; i < chans.size(); ++i) {
+			Channel& c = channels[chans.at(i)];
 			
-	// 		broadcastToChannel(c, clientPrefix(fd) + " PART " + chans.at(i));
-	// 		// _GetClient(fd).channels.erase() // need to remove the channel name from this vector and do it too to PART command
-	// 		c.members.erase(fd);
-	// 		c.operators.erase(fd);
-	// 		c.invited.erase(fd);
+			broadcastToChannel(c, clientPrefix(fd) + " PART " + chans.at(i));
+			// _GetClient(fd).channels.erase(chans.at(i)); // need to remove the channel name from this vector and do it too to PART command
+			c.members.erase(fd);
+			c.operators.erase(fd);
+			c.invited.erase(fd);
 
-	// 		ensureChannelOperator(c);
+			ensureChannelOperator(c);
 
-	// 		if (c.members.empty())
-	// 			channels.erase(chans.at(i));
-	// 	}
-	// 	return;
-	// }
+			if (c.members.empty())
+				channels.erase(chans.at(i));
+		}
+		_GetClient(fd).channels.clear();
+		return;
+	}
 
 	// JOIN #1,#2,#3 key1, key2
 	std::vector<std::string> channelNames = splitString(args[1], ',');
@@ -767,7 +755,7 @@ void Server::cmdJoin(int fd, const std::vector<std::string>& args)
 
 		// Admit the client.
 		ch.members.insert(fd);
-		// _GetClient(fd).channels.push_back(channelName); // -------------
+		_GetClient(fd).channels.push_back(channelName); // -------------
 		if (ch.members.size() == 1)
 			ch.operators.insert(fd); // First joiner becomes operator.
 		ch.invited.erase(fd);
