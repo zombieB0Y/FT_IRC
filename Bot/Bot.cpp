@@ -201,9 +201,9 @@ void Bot::help(const std::string &prefix, const std::string &cmd, const std::vec
 	(void)cmd;
 	std::string target = args[0];    
 	if (target[0] != '#') {
-		size_t excl_pos = prefix.find('!');
-		if (excl_pos != std::string::npos) {
-			target = prefix.substr(1, excl_pos - 1);
+		size_t pos = prefix.find('!');
+		if (pos != std::string::npos) {
+			target = prefix.substr(1, pos - 1);
 		}
 	}
 	unsigned int i = 0;
@@ -222,7 +222,7 @@ void Bot::_handleCommand(const std::string &prefix,const std::string &cmd,const 
 		joke(prefix,cmd,args);
 	if (cmd == "INVITE")
 		accept_invite(args);
-	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!help") != std::string::npos)
+	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!hp") != std::string::npos)
 		help(prefix,cmd,args);
 	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!manual") != std::string::npos)
 		manual(prefix,cmd,args);
