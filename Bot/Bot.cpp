@@ -29,11 +29,6 @@ int Bot::connectToServer(){
 		std::cout << "failed to create a socket"  << std::endl;
 			return 0;
 	}
-	int flags = fcntl(_botFd, F_GETFL, 0);
-	if (fcntl(_botFd, F_SETFL, flags | O_NONBLOCK) == -1) {
-		std::cerr << "fcntl() failed: could not make socket non-blocking" << std::endl;
-		return 0;
-	}
 	struct sockaddr_in serverAdress;
 	serverAdress.sin_family = AF_INET;
 	serverAdress.sin_addr.s_addr = inet_addr(_host.c_str());
@@ -63,8 +58,21 @@ void Bot::setter(){
 	jokesList.push_back(std::make_pair("How many programmers does it take to change a light bulb?","None. It's a hardware problem."));
 	jokesList.push_back(std::make_pair("Why did the C++ programmer get bad grades?","Because they couldn't get the class pointers right."));
 	jokesList.push_back(std::make_pair("Why do Java developers wear glasses?","Because they don't C#!"));
-	messages = "PRIVMSG :🤖 Available commands for Bot1:\r\nr\nPRIVMSG :!joke - I'll tell you a funny joke.\r\nPRIVMSG :!help - Shows this list of commands.\r\nPRIVMSG :!manual - Shows the IRC server manual.\r\n";
-	manualLines = "📖 IRC Server Manual:\r\nJOIN <#channel> : Join one or more channels.\r\nPRIVMSG <target> :<message> : Send a message to a user or channel.\r\nKICK <#channel> <nickname> [reason] : Kick a user from a channel (Operator only).\r\nINVITE <nickname> <#channel> : Invite a user to a channel (Operator only).\r\nTOPIC <#channel> [topic] : View or change a channel's topic.\r\nMODE <#channel> <+/-itkol> [args] : Change channel modes.\r\nPART <#channel> [reason] : Leave a channel.\r\nQUIT [reason] : Disconnect from the server.\r\n";
+	messages.push_back("PRIVMSG :🤖 Available commands for Bot1:\r\n");
+	messages.push_back("PRIVMSG :!joke - I'll tell you a funny joke.\r\n");
+	messages.push_back("PRIVMSG :!help - Shows this list of commands.\r\n");
+	messages.push_back("PRIVMSG :!manual - Shows the IRC server manual.\r\n");
+	messages.push_back("PRIVMSG :!draw <animal> - Draws an ASCII art of the specified animal (cat, dog, fish, rabbit, turtle).\r\n");
+	messages.push_back("PRIVMSG :!invite <#channel> - Invite the bot to a channel.\r\n");
+	manualLines.push_back("📖 IRC Server Manual:\r\n");
+	manualLines.push_back("JOIN <#channel> : Join one or more channels.\r\n");
+	manualLines.push_back("PRIVMSG <target> :<message> : Send a message to a user or channel.\r\n");
+	manualLines.push_back("KICK <#channel> <nickname> [reason] : Kick a user from a channel (Operator only).\r\n");
+	manualLines.push_back("INVITE <nickname> <#channel> : Invite a user to a channel (Operator only).\r\n");
+	manualLines.push_back("TOPIC <#channel> [topic] : View or change a channel's topic.\r\n");
+	manualLines.push_back("MODE <#channel> <+/-itkol> [args] : Change channel modes.\r\n");
+	manualLines.push_back("PART <#channel> [reason] : Leave a channel.\r\n");
+	manualLines.push_back("QUIT [reason] : Disconnect from the server.\r\n");
 }
 
 void Bot::read_message(std::string message){
@@ -111,7 +119,14 @@ void Bot::help(const std::string &prefix, const std::string &cmd, const std::vec
 			target = prefix.substr(1, excl_pos - 1);
 		}
 	}
-		send(_botFd, messages.c_str(), messages.size(), 0);
+	unsigned int i = 0;
+	std::string reply;
+	while(i < manualLines.size()){
+		reply.clear();
+		reply = "PRIVMSG " + target + " :" + manualLines[i] + "\r\n";
+		send(_botFd, reply.c_str(), reply.size(), 0);
+		i++;
+	}
 }
 
 std::string Bot::draw_animals(const std::string &target, const std::string &animal) {
@@ -198,9 +213,14 @@ void Bot::manual(const std::string &prefix, const std::string &cmd, const std::v
 			target = prefix.substr(1, pos - 1);
 		}
 	}
-
-		std::string reply = "PRIVMSG " + target + " :" + manualLines + "\r\n";
+	unsigned int i = 0;
+	std::string reply;
+	while(i < manualLines.size()){
+		reply.clear();
+		reply = "PRIVMSG " + target + " :" + manualLines[i] + "\r\n";
 		send(_botFd, reply.c_str(), reply.size(), 0);
+		i++;
+	}
 }
 
 void Bot::_handleCommand(const std::string &prefix,const std::string &cmd,const std::vector<std::string> &args){

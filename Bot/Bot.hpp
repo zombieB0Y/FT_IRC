@@ -27,8 +27,8 @@ class Bot {
         std::string _buffer;
         Bot_command command;
         std::vector<std::pair <std::string, std::string> > jokesList;
-        std::string manualLines;
-        std::string messages;
+        std::vector<std::string> messages;
+        std::vector<std::string> manualLines;
     public:
         Bot(std::string host,int port,std::string password) : _host(host),_port(port), _password(password){
             setter();
