@@ -8,23 +8,6 @@
 // Holds the per-connection state for one IRC client.
 
 class Client {
-private:
-	// ── Connection ───────────────────────────────────────────────────────────
-	int         fd;
-	std::string ip;
-	int         port;
-
-	// ── Registration flags ───────────────────────────────────────────────────
-	bool        passAccepted;
-	bool        hasNick;
-	bool        hasUser;
-	bool        welcomed;
-
-	// ── Identity ─────────────────────────────────────────────────────────────
-	std::string nick;
-	std::string username;
-	std::string realname;
-
 public:
     // ── I/O buffers (accessed directly by Server for efficiency) ─────────────
     std::string recvBuffer;
