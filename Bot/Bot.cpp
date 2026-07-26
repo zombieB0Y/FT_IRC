@@ -18,7 +18,7 @@ Bot::Bot(std::string host, int port, std::string password) : _host(host), _port(
 
 int Bot::connectToServer(){
 	_botFd = socket(AF_INET, SOCK_STREAM, 0);
-	if (_botFd < 0){
+	if (_botFd < 0) {
 		std::cout << "failed to create a socket"  << std::endl;
 			return 0;
 	}
@@ -38,15 +38,14 @@ int Bot::connectToServer(){
 void Bot::_regesterWithServer(){
 	std::string a[4];
 	a[0] = "PASS " + _password + "\r\n";
-	a[1] = "NICK " + _nickname + "\r\n";
 	a[2] = "USER Bot 0 * :" + _nickname + "\r\n";
-	a[3] = "JOIN #GENERAL\r\n";
+	a[1] = "NICK " + _nickname + "\r\n";
 	for(int i = 0; i < 4 ;i++)
 		send(_botFd, a[i].c_str(), a[i].size(), 0);
 }
 
 void Bot::setter(){
-	_nickname = "Bot1";
+	_nickname = "Bot";
 	jokesList.push_back(std::make_pair("What did the shark say when he ate the clownfish?","This tastes a little funny."));
 	jokesList.push_back(std::make_pair("Why do programmers prefer dark mode?","Because light attracts bugs!"));
 	jokesList.push_back(std::make_pair("How many programmers does it take to change a light bulb?","None. It's a hardware problem."));
@@ -75,15 +74,15 @@ void Bot::read_message(std::string message){
 	std::string word;
 	command.command.clear();
 	command.prefix.clear();
-	command.parameters.clear();
-	while(ss >> word){
+	command.parameters.clear(); // ss >> word =split
+	while(ss >> word){    // Split the message into words
 		if (i == 0 && word[0] == ':'){
 			command.prefix = word;
 		}
 		else if (command.command.empty())
 			command.command = word;
 		else{
-			if (word[0] == ':'){
+			if (word[0] == ':'){	
 				std::string rest;
 				std::getline(ss,rest);
 				word += rest;
@@ -91,8 +90,9 @@ void Bot::read_message(std::string message){
 				command.parameters.push_back(word);
 				break;
 			}
-			else
+			else{
 				command.parameters.push_back(word);
+			}
 		}
 		i++;
 	}
@@ -136,8 +136,7 @@ std::string Bot::draw_animals(const std::string &target, const std::string &anim
 	return p + "Unknown animal command.\r\n";
 }
 
-void Bot::draw(const std::string &prefix, const std::string &cmd, const std::vector<std::string> &args){
-	(void)cmd;
+void Bot::draw(const std::string &prefix, const std::vector<std::string> &args,std::string &animal){
 	std::string target = args[0];    
 	if (target[0] != '#') {
 		size_t pos = prefix.find('!');
@@ -147,19 +146,10 @@ void Bot::draw(const std::string &prefix, const std::string &cmd, const std::vec
 	}
 	std::string reply;
 	
-	if (args[1].find("cat") != std::string::npos)
-		reply = draw_animals(target, "cat");
-	else if (args[1].find("dog") != std::string::npos)
-		reply = draw_animals(target, "dog");
-	else if (args[1].find("fish") != std::string::npos)
-		reply = draw_animals(target, "fish");
-	else if (args[1].find("rabbit") != std::string::npos)
-		reply = draw_animals(target, "rabbit");
-	else if (args[1].find("turtle") != std::string::npos)
-		reply = draw_animals(target, "turtle");
-
+	reply = draw_animals(target, animal);
 	if (!reply.empty()) {
 		send(_botFd, reply.c_str(), reply.size(), 0);
+		animal.clear();
 	}
 }
 
@@ -217,18 +207,48 @@ void Bot::help(const std::string &prefix, const std::string &cmd, const std::vec
 	}
 }
 
+void Bot::_handleCommand(const std::string &prefix, const std::string &cmd, std::vector<std::string> &args){
+	if (cmd == "433") {
+		static int i = 1;
+		std::stringstream ss;
+		std::string newNickname;
+		ss << i;
+        newNickname = _nickname + ss.str();
+        std::string retry = "NICK " + newNickname + "\r\n";
+        send(_botFd, retry.c_str(), retry.size(), 0);
+		i++;
+    }
+	if (cmd == "001") {
+        std::string joinMsg = "JOIN #GENERAL\r\n";
+        send(_botFd, joinMsg.c_str(), joinMsg.size(), 0);  
+    }
 
-void Bot::_handleCommand(const std::string &prefix,const std::string &cmd,const std::vector<std::string> &args){
-	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!joke") != std::string::npos)
+	if (args.size() >= 2 && !args[1].empty()){
+		size_t pos = args[1].find_first_not_of(" \t");
+		if (pos != std::string::npos) {
+			args[1].erase(0, pos);
+		}
+		args[1] = args[1].substr(0, args[1].find_last_not_of(" \t") + 1);
+	}
+	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1] == "!joke")
 		joke(prefix,cmd,args);
 	if (cmd == "INVITE")
 		accept_invite(args);
-	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!hp") != std::string::npos)
+	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1] == "!hp")
 		help(prefix,cmd,args);
-	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!manual") != std::string::npos)
+	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1] == "!manual")
 		manual(prefix,cmd,args);
-	if (cmd == "PRIVMSG" && args.size() >= 2 && args[1].find("!draw") != std::string::npos)
-		draw(prefix,cmd,args);
+	if(args.size() >= 2 && !args[1].empty()) {
+		std::stringstream ss(args[1]);
+		std::string command;
+		ss >> command;
+		if (cmd == "PRIVMSG" && args.size() >= 2 && command == "!draw"){
+			ss >> animal;
+			if (!ss.eof())
+				return;
+			draw(prefix,args,animal);
+		}
+	}
 }
 
 void Bot::run() {
@@ -240,10 +260,9 @@ void Bot::run() {
 		if (bytesReceived <= 0)
 			return;
 		else{
-			tempBuffer[bytesReceived ] = '\0';
 			_buffer += tempBuffer;
 			while (true) {
-				size_t pos = _buffer.find("\r\n",0);
+				size_t pos = _buffer.find("\r\n");
 				
 				if (pos != std::string::npos){
 					read_message(_buffer.substr(0,pos));
@@ -291,10 +310,9 @@ int main(int ac, char **argv){
 	struct sigaction sa;
     sa.sa_handler = signalHandler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0; // The magic happens here: NO SA_RESTART
+    sa.sa_flags = 0;
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
-    // sigaction(SIGPIPE, &sa, NULL);
 	std::string host = argv[1];
 	int port = atoi(argv[2]);
 	std::string password = argv[3];

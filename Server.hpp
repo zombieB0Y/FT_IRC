@@ -36,7 +36,6 @@ public:
 	void    _initcommadlist();
 	bool	_isacmd(std::string m) const;
 	Client&	_GetClient(int fd) {return (this->clients.find(fd)->second);}
-	void	_clear();
 private:
 	// ── Configuration ────────────────────────────────────────────────────────
 	int         port;

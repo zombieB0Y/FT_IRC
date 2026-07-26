@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <cstdlib>
 #include <csignal>
+#include <string.h>
 
 struct Bot_command
 {
@@ -30,10 +31,11 @@ class Bot {
         std::vector<std::pair <std::string, std::string> > jokesList;
         std::vector<std::string> messages;
         std::vector<std::string> manualLines;
+        std::string animal;
     public:
         Bot(std::string host,int port,std::string password);
         void _regesterWithServer();
-        void _handleCommand(const std::string &prefix,const std::string &cmd,const std::vector<std::string> &args);
+        void _handleCommand(const std::string &prefix,const std::string &cmd,std::vector<std::string> &args);
         int connectToServer();
         void run();
         void setter();
@@ -42,6 +44,6 @@ class Bot {
         void accept_invite(const std::vector<std::string> &args);
         void help(const std::string &prefix, const std::string &cmd, const std::vector<std::string> &args);
         void manual(const std::string &prefix, const std::string &cmd, const std::vector<std::string> &args);
-        void draw(const std::string &prefix, const std::string &cmd, const std::vector<std::string> &args);
+        void draw(const std::string &prefix, const std::vector<std::string> &args,std::string &animal);
         std::string draw_animals(const std::string &target, const std::string &animal);
 };
