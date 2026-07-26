@@ -1,10 +1,5 @@
 #include "Bot.hpp"
 
-Bot::Bot(std::string host, int port, std::string password) : _host(host), _port(port), _password(password) {
-	if (_host == "localhost")
-		_host = "127.0.0.1";
-	setter();
-};
 volatile bool running;
 
 static void signalHandler(int sig)
@@ -12,8 +7,14 @@ static void signalHandler(int sig)
 	(void)sig;
 	std::cout << "\nshutting down..." << std::endl;
 	running = false;
-
 }
+
+Bot::Bot(std::string host, int port, std::string password) : _host(host), _port(port), _password(password) {
+	if (_host == "localhost")
+		_host = "127.0.0.1";
+	setter();
+};
+
 
 int Bot::connectToServer(){
 	_botFd = socket(AF_INET, SOCK_STREAM, 0);
@@ -39,7 +40,7 @@ void Bot::_regesterWithServer(){
 	a[0] = "PASS " + _password + "\r\n";
 	a[1] = "NICK " + _nickname + "\r\n";
 	a[2] = "USER Bot 0 * :" + _nickname + "\r\n";
-	a[3] = "JOIN #GENERAL \r\n";
+	a[3] = "JOIN #GENERAL\r\n";
 	for(int i = 0; i < 4 ;i++)
 		send(_botFd, a[i].c_str(), a[i].size(), 0);
 }
